@@ -39,6 +39,27 @@ export interface Package {
   destinations?: { id: string; destination: string; country?: string; nights: number }[];
 }
 
+export interface BookingServiceItem {
+  id?: string;
+  serviceType: 'PACKAGE' | 'TICKET' | 'VISA' | 'HOTEL';
+  description: string;
+  amount: number;
+  costAmount?: number;
+  vendorId?: string;
+  vendor?: Vendor;
+  details?: Record<string, string>;
+}
+
+export interface Vendor {
+  id: string;
+  name: string;
+  category: 'HOTEL' | 'VISA' | 'TICKETING' | 'OTHER';
+  contactPerson?: string;
+  email?: string;
+  phone?: string;
+  account?: Account;
+}
+
 export interface Booking {
   id: string;
   bookingNumber: string;
@@ -52,7 +73,17 @@ export interface Booking {
   notes?: string;
   customer?: Customer;
   package?: Package;
+  serviceItems?: BookingServiceItem[];
   createdAt: string;
+}
+
+export interface InvoiceItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  serviceType?: string;
 }
 
 export interface Invoice {
@@ -66,8 +97,55 @@ export interface Invoice {
   status: 'DRAFT' | 'SENT' | 'PAID' | 'PARTIAL' | 'OVERDUE' | 'CANCELLED';
   issueDate: string;
   dueDate: string;
+  confirmedAt?: string;
   customer?: Customer;
   booking?: Booking;
+  items?: InvoiceItem[];
+}
+
+export interface Payment {
+  id: string;
+  paymentNumber: string;
+  amount: number;
+  method: string;
+  paymentDate: string;
+  verificationStatus: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  invoice?: Invoice;
+}
+
+export interface Voucher {
+  id: string;
+  voucherNumber: string;
+  hotelName: string;
+  checkInDate: string;
+  checkOutDate?: string;
+  guestName: string;
+  roomDetails?: string;
+  status: 'DRAFT' | 'ISSUED' | 'SHARED';
+  booking?: Booking;
+}
+
+export interface CheckInRecord {
+  id: string;
+  hotelName: string;
+  checkInDate: string;
+  guestName?: string;
+  roomDetails?: string;
+  reminderSent: boolean;
+  booking?: Booking;
+}
+
+export interface CustomerLedger {
+  customer: Customer;
+  account?: Account;
+  summary: {
+    totalBilled: number;
+    totalPaid: number;
+    outstanding: number;
+    ledgerBalance: number;
+  };
+  invoices: Invoice[];
+  bookings: { id: string; bookingNumber: string; totalAmount: number; paidAmount: number; status: string }[];
 }
 
 export interface Account {

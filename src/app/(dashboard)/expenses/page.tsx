@@ -6,7 +6,7 @@ import { Plus } from 'lucide-react';
 import api from '@/lib/api';
 import { buildQueryString } from '@/lib/query';
 import { RootState } from '@/store';
-import { Account, ApiResponse } from '@/types';
+import { Account, Vendor, ApiResponse } from '@/types';
 import { canCreateResource, canEditResource, canDeleteResource } from '@/lib/permissions';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/Input';
@@ -29,18 +29,20 @@ interface Expense {
 const expenseCategories = [
   { value: 'AIRLINE', label: 'Airline Payment' },
   { value: 'HOTEL', label: 'Hotel Payment' },
+  { value: 'VISA', label: 'Visa Payment' },
   { value: 'OFFICE', label: 'Office Expense' },
   { value: 'SALARY', label: 'Salary' },
   { value: 'MARKETING', label: 'Marketing' },
   { value: 'OTHER', label: 'Other' },
 ];
 
-const emptyForm = { category: 'OFFICE', accountId: '', amount: '', description: '', vendor: '', expenseDate: '' };
+const emptyForm = { category: 'OFFICE', accountId: '', amount: '', description: '', vendor: '', vendorId: '', expenseDate: '' };
 
 export default function ExpensesPage() {
   const user = useSelector((state: RootState) => state.auth.user);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -51,23 +53,28 @@ export default function ExpensesPage() {
   const [appliedDates, setAppliedDates] = useState({ startDate: '', endDate: '' });
   const [category, setCategory] = useState('');
   const [summary, setSummary] = useState<{ count: number; total: number } | null>(null);
+  const [loadError, setLoadError] = useState('');
 
   const loadData = (dates = appliedDates, cat = category) => {
     setLoading(true);
+    setLoadError('');
     const query = buildQueryString({ startDate: dates.startDate, endDate: dates.endDate, category: cat });
-    Promise.all([
+    Promise.allSettled([
       api.get<ApiResponse<Expense[]>>(`/expenses${query}`),
       api.get<ApiResponse<Account[]>>('/payments/accounts'),
+      api.get<ApiResponse<Vendor[]>>('/vendors'),
     ])
-      .then(([expRes, accRes]) => {
-        setExpenses(expRes.data || []);
-        setSummary({
-          count: expRes.summary?.count ?? expRes.pagination?.total ?? 0,
-          total: expRes.summary?.totalAmount ?? 0,
-        });
-        setAccounts(accRes.data || []);
+      .then(([expRes, accRes, venRes]) => {
+        if (expRes.status === 'fulfilled') {
+          setExpenses(expRes.value.data || []);
+          setSummary({
+            count: expRes.value.summary?.count ?? expRes.value.pagination?.total ?? 0,
+            total: expRes.value.summary?.totalAmount ?? 0,
+          });
+        } else setLoadError(expRes.reason?.message || 'Failed to load expenses');
+        if (accRes.status === 'fulfilled') setAccounts(accRes.value.data || []);
+        if (venRes.status === 'fulfilled') setVendors(venRes.value.data || []);
       })
-      .catch(console.error)
       .finally(() => setLoading(false));
   };
 
@@ -101,6 +108,7 @@ export default function ExpensesPage() {
       amount: String(e.amount),
       description: e.description,
       vendor: e.vendor || '',
+      vendorId: '',
       expenseDate: e.expenseDate.split('T')[0],
     });
     setShowForm(true);
@@ -149,6 +157,10 @@ export default function ExpensesPage() {
         ) : undefined}
       />
 
+      {loadError && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{loadError}</div>
+      )}
+
       <DateRangeFilter
         startDate={startDate}
         endDate={endDate}
@@ -184,7 +196,8 @@ export default function ExpensesPage() {
                 <Input label="Amount (read-only)" type="number" value={form.amount} disabled />
               )}
               <Input label="Expense Date" type="date" value={form.expenseDate} onChange={(e) => setForm({ ...form, expenseDate: e.target.value })} />
-              <Input label="Vendor" value={form.vendor} onChange={(e) => setForm({ ...form, vendor: e.target.value })} />
+              <Select label="Vendor Account" value={form.vendorId} onChange={(e) => setForm({ ...form, vendorId: e.target.value })} options={[{ value: '', label: 'General expense pool' }, ...vendors.map((v) => ({ value: v.id, label: `${v.name} (${v.category})` }))]} />
+              <Input label="Vendor (text)" value={form.vendor} onChange={(e) => setForm({ ...form, vendor: e.target.value })} />
               <div className="md:col-span-2">
                 <Textarea label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required rows={2} />
               </div>

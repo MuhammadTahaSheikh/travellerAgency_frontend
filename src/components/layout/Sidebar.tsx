@@ -22,6 +22,9 @@ import {
   Plane,
   Activity,
   X,
+  Building2,
+  Ticket,
+  CalendarDays,
 } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { toggleSidebar, closeMobileMenu } from '@/store/slices/uiSlice';
@@ -33,6 +36,9 @@ const navItems = [
   { href: '/bookings', label: 'Bookings', icon: CalendarCheck, roles: ['SUPER_ADMIN', 'ADMIN', 'USER'] },
   { href: '/invoices', label: 'Invoices', icon: FileText, roles: ['SUPER_ADMIN', 'ADMIN', 'USER'] },
   { href: '/payments', label: 'Payments', icon: CreditCard, roles: ['SUPER_ADMIN', 'ADMIN', 'USER'] },
+  { href: '/vouchers', label: 'Vouchers', icon: Ticket, roles: ['SUPER_ADMIN', 'ADMIN', 'USER'] },
+  { href: '/check-ins', label: 'Check-ins', icon: CalendarDays, roles: ['SUPER_ADMIN', 'ADMIN', 'USER'] },
+  { href: '/vendors', label: 'Vendors', icon: Building2, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/expenses', label: 'Expenses', icon: Receipt, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/ledger', label: 'Ledger', icon: BookOpen, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/reports', label: 'Reports', icon: BarChart3, roles: ['SUPER_ADMIN', 'ADMIN'] },

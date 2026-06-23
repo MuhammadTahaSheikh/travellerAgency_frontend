@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { Plus } from 'lucide-react';
+import { Plus, CheckCircle, ExternalLink } from 'lucide-react';
 import api from '@/lib/api';
 import { buildQueryString } from '@/lib/query';
 import { RootState } from '@/store';
@@ -104,6 +104,26 @@ export default function InvoicesPage() {
     }
   };
 
+  const handleConfirm = async (inv: Invoice) => {
+    if (!confirm(`Confirm invoice ${inv.invoiceNumber}? This will debit the customer ledger.`)) return;
+    try {
+      await api.post(`/invoices/${inv.id}/confirm`, {});
+      loadData();
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
+  const handleView = async (inv: Invoice) => {
+    try {
+      const html = await api.getHtml(`/invoices/${inv.id}/html`);
+      const blob = new Blob([html], { type: 'text/html' });
+      window.open(URL.createObjectURL(blob), '_blank');
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
   const handleDelete = async (inv: Invoice) => {
     if (!await confirmDelete(`invoice ${inv.invoiceNumber}`)) return;
     try {
@@ -192,12 +212,18 @@ export default function InvoicesPage() {
                         <TableCell><Badge status={inv.status}>{inv.status}</Badge></TableCell>
                         <TableCell className="hidden md:table-cell text-slate-500">{formatDate(inv.dueDate)}</TableCell>
                         <TableCell align="right">
-                          <RowActions
-                            onEdit={() => startEdit(inv)}
-                            onDelete={() => handleDelete(inv)}
-                            canEdit={canEditResource(user, 'invoices')}
-                            canDelete={canDeleteResource(user, 'invoices')}
-                          />
+                          <div className="flex justify-end gap-1">
+                            <Button variant="secondary" onClick={() => handleView(inv)} title="View invoice"><ExternalLink className="w-4 h-4" /></Button>
+                            {!inv.confirmedAt && inv.status !== 'CANCELLED' && canEditResource(user, 'invoices') && (
+                              <Button variant="secondary" onClick={() => handleConfirm(inv)} title="Confirm & debit ledger"><CheckCircle className="w-4 h-4" /></Button>
+                            )}
+                            <RowActions
+                              onEdit={() => startEdit(inv)}
+                              onDelete={() => handleDelete(inv)}
+                              canEdit={canEditResource(user, 'invoices')}
+                              canDelete={canDeleteResource(user, 'invoices')}
+                            />
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { Plus } from 'lucide-react';
+import { Plus, CheckCircle } from 'lucide-react';
 import api from '@/lib/api';
 import { buildQueryString } from '@/lib/query';
 import { RootState } from '@/store';
-import { Invoice, Account, ApiResponse } from '@/types';
+import { Invoice, Account, Payment, ApiResponse } from '@/types';
 import { canDeleteResource } from '@/lib/permissions';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
@@ -16,18 +16,13 @@ import { PageHeader, LoadingSpinner, formatCurrency, formatDate, EmptyState } fr
 import { RowActions, confirmDelete } from '@/components/ui/RowActions';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
-interface Payment {
-  id: string;
+interface PaymentRow extends Payment {
   paymentNumber: string;
-  amount: number;
-  method: string;
-  paymentDate: string;
-  invoice?: Invoice;
 }
 
 export default function PaymentsPage() {
   const user = useSelector((state: RootState) => state.auth.user);
-  const [payments, setPayments] = useState<Payment[]>([]);
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,25 +33,28 @@ export default function PaymentsPage() {
   const [endDate, setEndDate] = useState('');
   const [appliedDates, setAppliedDates] = useState({ startDate: '', endDate: '' });
   const [summary, setSummary] = useState<{ count: number; total: number } | null>(null);
+  const [loadError, setLoadError] = useState('');
 
   const loadData = (dates = appliedDates) => {
     setLoading(true);
+    setLoadError('');
     const query = buildQueryString({ startDate: dates.startDate, endDate: dates.endDate });
-    Promise.all([
-      api.get<ApiResponse<Payment[]>>(`/payments${query}`),
+    Promise.allSettled([
+      api.get<ApiResponse<PaymentRow[]>>(`/payments${query}`),
       api.get<ApiResponse<Invoice[]>>('/invoices'),
       api.get<ApiResponse<Account[]>>('/payments/accounts'),
     ])
       .then(([payRes, invRes, accRes]) => {
-        setPayments(payRes.data || []);
-        setSummary({
-          count: payRes.summary?.count ?? payRes.pagination?.total ?? 0,
-          total: payRes.summary?.totalAmount ?? 0,
-        });
-        setInvoices(invRes.data || []);
-        setAccounts(accRes.data || []);
+        if (payRes.status === 'fulfilled') {
+          setPayments(payRes.value.data || []);
+          setSummary({
+            count: payRes.value.summary?.count ?? payRes.value.pagination?.total ?? 0,
+            total: payRes.value.summary?.totalAmount ?? 0,
+          });
+        } else setLoadError(payRes.reason?.message || 'Failed to load payments');
+        if (invRes.status === 'fulfilled') setInvoices(invRes.value.data || []);
+        if (accRes.status === 'fulfilled') setAccounts(accRes.value.data || []);
       })
-      .catch(console.error)
       .finally(() => setLoading(false));
   };
 
@@ -89,7 +87,16 @@ export default function PaymentsPage() {
     }
   };
 
-  const handleDelete = async (p: Payment) => {
+  const handleVerify = async (p: PaymentRow) => {
+    try {
+      await api.post(`/payments/${p.id}/verify`, {});
+      loadData();
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
+  const handleDelete = async (p: PaymentRow) => {
     if (!await confirmDelete(`payment ${p.paymentNumber}`)) return;
     try {
       await api.delete(`/payments/${p.id}`);
@@ -106,6 +113,10 @@ export default function PaymentsPage() {
         subtitle="Record and track customer payments"
         action={<Button onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-2" />Record Payment</Button>}
       />
+
+      {loadError && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{loadError}</div>
+      )}
 
       <DateRangeFilter
         startDate={startDate}
@@ -148,6 +159,7 @@ export default function PaymentsPage() {
                       <TableHeaderCell className="hidden sm:table-cell">Invoice</TableHeaderCell>
                       <TableHeaderCell>Amount</TableHeaderCell>
                       <TableHeaderCell className="hidden md:table-cell">Method</TableHeaderCell>
+                      <TableHeaderCell>Status</TableHeaderCell>
                       <TableHeaderCell>Date</TableHeaderCell>
                       <TableHeaderCell align="right">Actions</TableHeaderCell>
                     </tr>
@@ -159,13 +171,19 @@ export default function PaymentsPage() {
                         <TableCell className="hidden sm:table-cell">{p.invoice?.invoiceNumber || '—'}</TableCell>
                         <TableCell className="font-medium text-teal-700">{formatCurrency(p.amount)}</TableCell>
                         <TableCell className="hidden md:table-cell capitalize">{p.method.replace('_', ' ').toLowerCase()}</TableCell>
+                        <TableCell className="capitalize text-sm">{p.verificationStatus?.toLowerCase() || 'verified'}</TableCell>
                         <TableCell className="text-slate-500">{formatDate(p.paymentDate)}</TableCell>
                         <TableCell align="right">
-                          <RowActions
-                            onDelete={() => handleDelete(p)}
-                            canEdit={false}
-                            canDelete={canDeleteResource(user, 'payments')}
-                          />
+                          <div className="flex justify-end gap-1">
+                            {p.verificationStatus === 'PENDING' && (
+                              <Button variant="secondary" onClick={() => handleVerify(p)} title="Verify payment"><CheckCircle className="w-4 h-4" /></Button>
+                            )}
+                            <RowActions
+                              onDelete={() => handleDelete(p)}
+                              canEdit={false}
+                              canDelete={canDeleteResource(user, 'payments')}
+                            />
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

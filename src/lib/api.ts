@@ -19,12 +19,24 @@ class ApiClient {
 
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers,
+      });
+    } catch {
+      throw new Error(
+        `Cannot connect to API at ${API_URL}. Make sure the backend is running (cd backend && npm run dev).`
+      );
+    }
 
-    const data = await response.json();
+    let data: { error?: string; message?: string; success?: boolean };
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error(`Invalid response from server (${response.status})`);
+    }
 
     if (!response.ok) {
       if (response.status === 401 && typeof window !== 'undefined') {
@@ -35,7 +47,7 @@ class ApiClient {
       throw new Error(data.error || data.message || 'Request failed');
     }
 
-    return data;
+    return data as T;
   }
 
   get<T>(endpoint: string) {
@@ -52,6 +64,20 @@ class ApiClient {
 
   delete<T>(endpoint: string) {
     return this.request<T>(endpoint, { method: 'DELETE' });
+  }
+
+  async getHtml(endpoint: string): Promise<string> {
+    const token = this.getToken();
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}${endpoint}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch {
+      throw new Error('Cannot connect to API server. Is the backend running?');
+    }
+    if (!response.ok) throw new Error('Failed to load document');
+    return response.text();
   }
 }
 
