@@ -165,8 +165,10 @@ export default function VendorsPage() {
                           <TableCell>{v.category}</TableCell>
                           <TableCell>{v.contactPerson || v.phone || '—'}</TableCell>
                           <TableCell className="font-semibold text-amber-700">{formatCurrency(outstanding)}</TableCell>
-                          <TableCell className={inSync ? '' : 'text-red-600'} title={inSync ? undefined : 'Ledger does not match outstanding — contact admin to reconcile'}>
-                            {formatCurrency(ledger)}
+                          <TableCell className={inSync ? '' : 'text-red-600'}>
+                            <span title={inSync ? undefined : 'Ledger does not match outstanding — contact admin to reconcile'}>
+                              {formatCurrency(ledger)}
+                            </span>
                           </TableCell>
                         </TableRow>
                       );
