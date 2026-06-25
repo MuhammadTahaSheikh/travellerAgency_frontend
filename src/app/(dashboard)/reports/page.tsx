@@ -6,7 +6,7 @@ import { buildQueryString } from '@/lib/query';
 import { ApiResponse } from '@/types';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
-import { PageHeader, LoadingSpinner, formatCurrency, TabGroup, EmptyState } from '@/components/ui/Common';
+import { PageHeader, LoadingSpinner, formatCurrency, formatDate, TabGroup, EmptyState } from '@/components/ui/Common';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
 const reportTypes = [
@@ -18,17 +18,70 @@ const reportTypes = [
   { id: 'daily-collection', label: 'Daily Collection', endpoint: '/reports/daily-collection' },
 ];
 
-function StatCard({ label, value, variant }: { label: string; value: string; variant: 'green' | 'red' | 'blue' | 'teal' }) {
+const categoryLabels: Record<string, string> = {
+  PAYMENTS: 'Customer payments',
+  PACKAGE_BOOKING: 'Package bookings',
+  AIRLINE: 'Airline',
+  HOTEL: 'Hotel',
+  VISA: 'Visa',
+  TICKET: 'Ticketing',
+  OFFICE: 'Office',
+  SALARY: 'Salary',
+  MARKETING: 'Marketing',
+  OTHER: 'Other',
+};
+
+function labelFor(key: string) {
+  return categoryLabels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function StatCard({ label, value, variant }: { label: string; value: string; variant: 'green' | 'red' | 'blue' | 'teal' | 'amber' }) {
   const styles = {
     green: 'bg-emerald-50 border-emerald-100 text-emerald-700',
     red: 'bg-red-50 border-red-100 text-red-700',
     blue: 'bg-sky-50 border-sky-100 text-sky-700',
     teal: 'bg-teal-50 border-teal-100 text-teal-700',
+    amber: 'bg-amber-50 border-amber-100 text-amber-700',
   };
   return (
     <div className={`p-4 sm:p-5 rounded-2xl border ${styles[variant]}`}>
       <p className="text-xs sm:text-sm font-medium opacity-80">{label}</p>
       <p className="text-xl sm:text-2xl font-bold mt-1">{value}</p>
+    </div>
+  );
+}
+
+function sumRecord(values: Record<string, number>) {
+  return Object.values(values).reduce((s, v) => s + v, 0);
+}
+
+function BreakdownList({
+  title,
+  items,
+  emptyMessage,
+  valueClassName = 'text-red-600',
+}: {
+  title: string;
+  items: Record<string, number>;
+  emptyMessage: string;
+  valueClassName?: string;
+}) {
+  const entries = Object.entries(items).filter(([, val]) => val > 0);
+  return (
+    <div>
+      <h4 className="font-semibold text-slate-900 mb-3">{title}</h4>
+      {entries.length === 0 ? (
+        <p className="text-sm text-slate-500 py-2">{emptyMessage}</p>
+      ) : (
+        <div className="space-y-2">
+          {entries.map(([key, val]) => (
+            <div key={key} className="flex justify-between gap-4 py-2 text-sm border-b border-slate-100">
+              <span className="text-slate-600">{labelFor(key)}</span>
+              <span className={`font-medium shrink-0 ${valueClassName}`}>{formatCurrency(val)}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -100,41 +153,58 @@ export default function ReportsPage() {
           <CardBody>
             {activeReport === 'income-statement' || activeReport === 'profit-loss' ? (
               <div className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                   <StatCard label="Total Income" value={formatCurrency((data.totalIncome as number) || 0)} variant="green" />
-                  <StatCard label="Total Expenses" value={formatCurrency((data.totalExpenses as number) || 0)} variant="red" />
+                  <StatCard label="Cost of Sales" value={formatCurrency((data.totalCostOfSales as number) || 0)} variant="amber" />
+                  <StatCard label="Operating Expenses" value={formatCurrency((data.totalOperatingExpenses as number) || 0)} variant="red" />
                   <StatCard label="Net Income" value={formatCurrency((data.netIncome as number) || 0)} variant="teal" />
                 </div>
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="font-semibold text-slate-900 mb-3">Income Breakdown</h4>
-                    <div className="space-y-2">
-                      {Object.entries((data.income as Record<string, number>) || {}).map(([key, val]) => (
-                        <div key={key} className="flex justify-between py-2 text-sm border-b border-slate-100">
-                          <span className="text-slate-600 capitalize">{key.replace(/_/g, ' ')}</span>
-                          <span className="font-medium text-emerald-700">{formatCurrency(val)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-slate-900 mb-3">Expense Breakdown</h4>
-                    <div className="space-y-2">
-                      {Object.entries((data.expenses as Record<string, number>) || {}).map(([key, val]) => (
-                        <div key={key} className="flex justify-between py-2 text-sm border-b border-slate-100">
-                          <span className="text-slate-600 capitalize">{key.replace(/_/g, ' ')}</span>
-                          <span className="font-medium text-red-600">{formatCurrency(val)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <BreakdownList
+                    title="Income"
+                    items={(data.income as Record<string, number>) || {}}
+                    emptyMessage="No income recorded in this period."
+                    valueClassName="text-emerald-700"
+                  />
+                  <BreakdownList
+                    title="Cost of Sales (vendor costs on bookings)"
+                    items={(data.costOfSales as Record<string, number>) || {}}
+                    emptyMessage="No booking vendor costs in this period."
+                    valueClassName="text-amber-700"
+                  />
                 </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <BreakdownList
+                    title="Operating Expenses"
+                    items={(data.operatingExpenses as Record<string, number>) || {}}
+                    emptyMessage="No office, salary, or other operating expenses in this period."
+                  />
+                  <BreakdownList
+                    title="Vendor Payments (cash paid — not in P&L)"
+                    items={(data.vendorPayments as Record<string, number>) || {}}
+                    emptyMessage="No vendor payments recorded in this period."
+                    valueClassName="text-slate-600"
+                  />
+                </div>
+
+                <p className="text-xs text-slate-500 border-t border-slate-100 pt-4">
+                  Net income = income − cost of sales − operating expenses. Vendor payments reduce what you owe suppliers and appear in Cash Flow, not profit again.
+                </p>
               </div>
             ) : activeReport === 'cash-flow' ? (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <StatCard label="Cash Inflows" value={formatCurrency(((data.inflows as { total: number })?.total) || 0)} variant="green" />
-                <StatCard label="Cash Outflows" value={formatCurrency(((data.outflows as { total: number })?.total) || 0)} variant="red" />
-                <StatCard label="Net Cash Flow" value={formatCurrency((data.netCashFlow as number) || 0)} variant="teal" />
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <StatCard label="Cash Inflows" value={formatCurrency(((data.inflows as { total: number })?.total) || 0)} variant="green" />
+                  <StatCard label="Cash Outflows" value={formatCurrency(((data.outflows as { total: number })?.total) || 0)} variant="red" />
+                  <StatCard label="Net Cash Flow" value={formatCurrency((data.netCashFlow as number) || 0)} variant="teal" />
+                </div>
+                <BreakdownList
+                  title="Cash outflows by category"
+                  items={((data.outflows as { byCategory?: Record<string, number> })?.byCategory) || {}}
+                  emptyMessage="No cash outflows in this period."
+                />
               </div>
             ) : activeReport === 'customer-outstanding' ? (
               <div>
@@ -168,9 +238,94 @@ export default function ReportsPage() {
                 )}
               </div>
             ) : activeReport === 'daily-collection' ? (
-              <StatCard label="Total Collection" value={formatCurrency((data.total as number) || 0)} variant="teal" />
+              <div className="space-y-6">
+                <StatCard label="Total Collection" value={formatCurrency((data.total as number) || 0)} variant="teal" />
+                {((data.payments as { paymentNumber: string; amount: number; method: string; invoice?: { customer?: { firstName: string; lastName: string } } }[]) || []).length > 0 && (
+                  <TableWrapper>
+                    <Table>
+                      <TableHead>
+                        <tr>
+                          <TableHeaderCell>Payment #</TableHeaderCell>
+                          <TableHeaderCell>Customer</TableHeaderCell>
+                          <TableHeaderCell>Method</TableHeaderCell>
+                          <TableHeaderCell align="right">Amount</TableHeaderCell>
+                        </tr>
+                      </TableHead>
+                      <TableBody>
+                        {((data.payments as { paymentNumber: string; amount: number; method: string; invoice?: { customer?: { firstName: string; lastName: string } } }[]) || []).map((p) => (
+                          <TableRow key={p.paymentNumber}>
+                            <TableCell className="font-semibold">{p.paymentNumber}</TableCell>
+                            <TableCell>
+                              {p.invoice?.customer ? `${p.invoice.customer.firstName} ${p.invoice.customer.lastName}` : '—'}
+                            </TableCell>
+                            <TableCell>{p.method}</TableCell>
+                            <TableCell align="right" className="font-medium text-emerald-700">{formatCurrency(p.amount)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableWrapper>
+                )}
+              </div>
             ) : (
-              <StatCard label="Total Expenses" value={formatCurrency((data.total as number) || 0)} variant="red" />
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <StatCard label="Total Cash Out" value={formatCurrency((data.total as number) || 0)} variant="red" />
+                  <StatCard
+                    label="Vendor Payments"
+                    value={formatCurrency(sumRecord((data.vendorPayments as Record<string, number>) || {}))}
+                    variant="amber"
+                  />
+                  <StatCard
+                    label="Operating Expenses"
+                    value={formatCurrency(sumRecord((data.operatingExpenses as Record<string, number>) || {}))}
+                    variant="blue"
+                  />
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <BreakdownList
+                    title="By category"
+                    items={(data.byCategory as Record<string, number>) || {}}
+                    emptyMessage="No expenses in this period."
+                  />
+                  <BreakdownList
+                    title="Vendor payments"
+                    items={(data.vendorPayments as Record<string, number>) || {}}
+                    emptyMessage="No vendor payments in this period."
+                    valueClassName="text-amber-700"
+                  />
+                </div>
+                {((data.expenses as { id: string; expenseNumber: string; category: string; description: string; amount: number; expenseDate: string; vendorRef?: { name: string } }[]) || []).length === 0 ? (
+                  <EmptyState message="No expense transactions in this period." />
+                ) : (
+                  <TableWrapper>
+                    <Table>
+                      <TableHead>
+                        <tr>
+                          <TableHeaderCell>Expense #</TableHeaderCell>
+                          <TableHeaderCell>Category</TableHeaderCell>
+                          <TableHeaderCell>Description</TableHeaderCell>
+                          <TableHeaderCell className="hidden md:table-cell">Vendor</TableHeaderCell>
+                          <TableHeaderCell className="hidden sm:table-cell">Date</TableHeaderCell>
+                          <TableHeaderCell align="right">Amount</TableHeaderCell>
+                        </tr>
+                      </TableHead>
+                      <TableBody>
+                        {((data.expenses as { id: string; expenseNumber: string; category: string; description: string; amount: number; expenseDate: string; vendorRef?: { name: string } }[]) || []).map((e) => (
+                          <TableRow key={e.id}>
+                            <TableCell className="font-semibold">{e.expenseNumber}</TableCell>
+                            <TableCell>{labelFor(e.category)}</TableCell>
+                            <TableCell className="max-w-[200px] truncate">{e.description}</TableCell>
+                            <TableCell className="hidden md:table-cell">{e.vendorRef?.name || '—'}</TableCell>
+                            <TableCell className="hidden sm:table-cell text-slate-500">{formatDate(e.expenseDate)}</TableCell>
+                            <TableCell align="right" className="font-medium text-red-600">{formatCurrency(e.amount)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableWrapper>
+                )}
+              </div>
             )}
           </CardBody>
         </Card>
