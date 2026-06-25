@@ -177,7 +177,6 @@ export interface DashboardStats {
   overdueInvoices: number;
   totalRevenue: number;
   totalExpenses: number;
-  totalCostOfSales: number;
   netProfit: number;
   unreadNotifications: number;
 }

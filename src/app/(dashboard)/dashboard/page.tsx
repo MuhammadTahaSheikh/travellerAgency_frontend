@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Users, CalendarCheck, DollarSign, TrendingUp, TrendingDown, Package, FileText, Receipt } from 'lucide-react';
+import { Users, CalendarCheck, DollarSign, TrendingUp, Package, FileText, Receipt } from 'lucide-react';
 import api from '@/lib/api';
 import { DashboardStats, ApiResponse, Booking } from '@/types';
 import { StatCard } from '@/components/ui/Card';
@@ -37,12 +37,11 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5 mb-6 sm:mb-8">
         <StatCard title="Total Customers" value={stats?.totalCustomers || 0} icon={<Users className="w-5 h-5" />} color="teal" />
         <StatCard title="Total Bookings" value={stats?.totalBookings || 0} subtitle={`${stats?.pendingBookings} pending`} icon={<CalendarCheck className="w-5 h-5" />} color="blue" />
-        <StatCard title="Total Revenue" value={formatCurrency(stats?.totalRevenue || 0)} subtitle="Payments received" icon={<DollarSign className="w-5 h-5" />} color="green" />
-        <StatCard title="Cost of Sales" value={formatCurrency(stats?.totalCostOfSales || 0)} subtitle="Vendor costs on bookings" icon={<TrendingDown className="w-5 h-5" />} color="red" />
-        <StatCard title="Net Profit" value={formatCurrency(stats?.netProfit || 0)} subtitle="Revenue − vendor costs − expenses" icon={<TrendingUp className="w-5 h-5" />} color="purple" />
+        <StatCard title="Total Revenue" value={formatCurrency(stats?.totalRevenue || 0)} icon={<DollarSign className="w-5 h-5" />} color="green" />
+        <StatCard title="Net Profit" value={formatCurrency(stats?.netProfit || 0)} icon={<TrendingUp className="w-5 h-5" />} color="purple" />
         <StatCard title="Active Packages" value={stats?.totalPackages || 0} icon={<Package className="w-5 h-5" />} color="teal" />
         <StatCard title="Total Invoices" value={stats?.totalInvoices || 0} subtitle={`${stats?.overdueInvoices} overdue`} icon={<FileText className="w-5 h-5" />} color="amber" />
-        <StatCard title="Operating Expenses" value={formatCurrency(stats?.totalExpenses || 0)} subtitle="Rent, salaries, misc." icon={<Receipt className="w-5 h-5" />} color="red" />
+        <StatCard title="Total Expenses" value={formatCurrency(stats?.totalExpenses || 0)} icon={<Receipt className="w-5 h-5" />} color="red" />
         <StatCard title="Confirmed Bookings" value={stats?.confirmedBookings || 0} icon={<CalendarCheck className="w-5 h-5" />} color="green" />
       </div>
 
