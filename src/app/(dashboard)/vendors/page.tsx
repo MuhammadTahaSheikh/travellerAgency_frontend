@@ -12,9 +12,19 @@ import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, T
 
 const emptyForm = { name: '', category: 'HOTEL', contactPerson: '', email: '', phone: '' };
 
+type VendorPayable = {
+  vendorId: string;
+  vendorName: string;
+  category: string;
+  totalAllocated: number;
+  totalPaid: number;
+  outstanding: number;
+  accountBalance: number;
+};
+
 export default function VendorsPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [payables, setPayables] = useState<{ vendorName: string; category: string; totalAllocated: number; totalPaid: number; outstanding: number }[]>([]);
+  const [payables, setPayables] = useState<VendorPayable[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -52,6 +62,8 @@ export default function VendorsPage() {
       setSaving(false);
     }
   };
+
+  const payablesByVendorId = Object.fromEntries(payables.map((p) => [p.vendorId, p]));
 
   return (
     <div>
@@ -126,7 +138,10 @@ export default function VendorsPage() {
 
           <Card>
             <CardBody className="p-0 sm:p-0">
-              <div className="px-4 py-3 border-b border-slate-100"><h3 className="font-semibold">All Vendors</h3></div>
+              <div className="px-4 py-3 border-b border-slate-100">
+                <h3 className="font-semibold">All Vendors</h3>
+                <p className="text-xs text-slate-500 mt-1">Outstanding = booking costs minus payments. Ledger balance is negative when you owe the vendor.</p>
+              </div>
               <TableWrapper>
                 <Table>
                   <TableHead>
@@ -134,18 +149,28 @@ export default function VendorsPage() {
                       <TableHeaderCell>Name</TableHeaderCell>
                       <TableHeaderCell>Category</TableHeaderCell>
                       <TableHeaderCell>Contact</TableHeaderCell>
+                      <TableHeaderCell>Outstanding</TableHeaderCell>
                       <TableHeaderCell>Ledger Balance</TableHeaderCell>
                     </tr>
                   </TableHead>
                   <TableBody>
-                    {vendors.map((v) => (
-                      <TableRow key={v.id}>
-                        <TableCell className="font-medium">{v.name}</TableCell>
-                        <TableCell>{v.category}</TableCell>
-                        <TableCell>{v.contactPerson || v.phone || '—'}</TableCell>
-                        <TableCell>{formatCurrency(v.account?.balance || 0)}</TableCell>
-                      </TableRow>
-                    ))}
+                    {vendors.map((v) => {
+                      const payable = payablesByVendorId[v.id];
+                      const outstanding = payable?.outstanding ?? 0;
+                      const ledger = Number(v.account?.balance || 0);
+                      const inSync = Math.abs(ledger + outstanding) < 0.01;
+                      return (
+                        <TableRow key={v.id}>
+                          <TableCell className="font-medium">{v.name}</TableCell>
+                          <TableCell>{v.category}</TableCell>
+                          <TableCell>{v.contactPerson || v.phone || '—'}</TableCell>
+                          <TableCell className="font-semibold text-amber-700">{formatCurrency(outstanding)}</TableCell>
+                          <TableCell className={inSync ? '' : 'text-red-600'} title={inSync ? undefined : 'Ledger does not match outstanding — contact admin to reconcile'}>
+                            {formatCurrency(ledger)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </TableWrapper>
