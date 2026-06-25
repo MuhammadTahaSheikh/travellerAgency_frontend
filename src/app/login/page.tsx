@@ -87,7 +87,7 @@ export default function LoginPage() {
             <CardBody className="p-6 sm:p-8">
               <div className="mb-8">
                 <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Staff portal login</h2>
-                <p className="text-sm text-slate-500 mt-1">Employees & admins only — not for customers</p>
+                {/* <p className="text-sm text-slate-500 mt-1">Employees & admins only — not for customers</p> */}
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
