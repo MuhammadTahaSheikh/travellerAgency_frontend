@@ -155,6 +155,31 @@ export interface Account {
   type: 'CASH' | 'BANK' | 'CUSTOMER' | 'SUPPLIER' | 'EMPLOYEE';
   balance: number;
   isActive: boolean;
+  customerId?: string | null;
+  vendorId?: string | null;
+  employeeId?: string | null;
+  customer?: { id: string; firstName: string; lastName: string; phone?: string };
+  vendor?: { id: string; name: string; category: string };
+  employee?: { id: string; firstName: string; lastName: string };
+}
+
+export interface LedgerAccountGroup {
+  label: string;
+  accounts: Account[];
+  totalBalance: number;
+}
+
+export interface TrialBalanceRow {
+  accountId: string;
+  accountName: string;
+  accountCode: string;
+  accountType: string;
+  customerId?: string | null;
+  vendorId?: string | null;
+  employeeId?: string | null;
+  debit: number;
+  credit: number;
+  balance: number;
 }
 
 export interface Notification {
