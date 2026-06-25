@@ -3,17 +3,18 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { initAuth } from '@/store/slices/authSlice';
+import { initAuth, logout } from '@/store/slices/authSlice';
 import { fetchAppSettings } from '@/store/slices/settingsSlice';
 import { fetchUnreadCount } from '@/store/slices/notificationSlice';
 import { setSidebarOpen } from '@/store/slices/uiSlice';
+import { setUnauthorizedHandler } from '@/lib/authSession';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { isAuthenticated } = useAppSelector((s) => s.auth);
+  const { isAuthenticated, initialized } = useAppSelector((s) => s.auth);
   const sidebarOpen = useAppSelector((s) => s.ui.sidebarOpen);
 
   useEffect(() => {
@@ -21,13 +22,24 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   }, [dispatch]);
 
   useEffect(() => {
+    setUnauthorizedHandler(() => {
+      dispatch(logout());
+      router.replace('/login');
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [dispatch, router]);
+
+  useEffect(() => {
+    if (!initialized) return;
+
     if (!isAuthenticated) {
-      router.push('/login');
-    } else {
-      dispatch(fetchAppSettings());
-      dispatch(fetchUnreadCount());
+      router.replace('/login');
+      return;
     }
-  }, [isAuthenticated, router, dispatch]);
+
+    dispatch(fetchAppSettings());
+    dispatch(fetchUnreadCount());
+  }, [initialized, isAuthenticated, router, dispatch]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -40,7 +52,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('resize', handleResize);
   }, [dispatch]);
 
-  if (!isAuthenticated) return null;
+  if (!initialized || !isAuthenticated) return null;
 
   return (
     <div className="min-h-screen bg-slate-50">

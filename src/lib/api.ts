@@ -1,3 +1,5 @@
+import { notifyUnauthorized } from '@/lib/authSession';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
 
 interface RequestOptions extends RequestInit {
@@ -39,10 +41,13 @@ class ApiClient {
     }
 
     if (!response.ok) {
-      if (response.status === 401 && typeof window !== 'undefined') {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
+      if (response.status === 401 && token && typeof window !== 'undefined') {
+        const onLoginPage = window.location.pathname === '/login';
+        if (!onLoginPage) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          notifyUnauthorized();
+        }
       }
       throw new Error(data.error || data.message || 'Request failed');
     }

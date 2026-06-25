@@ -1,19 +1,24 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import api from '@/lib/api';
 import { User, ApiResponse } from '@/types';
+import { readStoredAuth } from '@/lib/authSession';
 
 interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  initialized: boolean;
   loading: boolean;
   error: string | null;
 }
 
+const stored = readStoredAuth();
+
 const initialState: AuthState = {
-  user: null,
-  token: null,
-  isAuthenticated: false,
+  user: stored?.user ?? null,
+  token: stored?.token ?? null,
+  isAuthenticated: Boolean(stored),
+  initialized: false,
   loading: false,
   error: null,
 };
@@ -57,15 +62,17 @@ const authSlice = createSlice({
       }
     },
     initAuth(state) {
-      if (typeof window !== 'undefined') {
-        const token = localStorage.getItem('token');
-        const userStr = localStorage.getItem('user');
-        if (token && userStr) {
-          state.token = token;
-          state.user = JSON.parse(userStr);
-          state.isAuthenticated = true;
-        }
+      const session = readStoredAuth();
+      if (session) {
+        state.token = session.token;
+        state.user = session.user;
+        state.isAuthenticated = true;
+      } else {
+        state.token = null;
+        state.user = null;
+        state.isAuthenticated = false;
       }
+      state.initialized = true;
     },
   },
   extraReducers: (builder) => {
