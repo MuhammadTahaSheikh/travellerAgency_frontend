@@ -120,13 +120,13 @@ export default function LoginPage() {
                 </Button>
               </form>
 
-              <div className="mt-8 p-4 bg-slate-50 rounded-xl border border-slate-100">
+              {/* <div className="mt-8 p-4 bg-slate-50 rounded-xl border border-slate-100">
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Demo access</p>
                 <div className="space-y-1.5 text-xs text-slate-600">
                   <p><span className="font-medium text-slate-700">Password:</span> admin123</p>
                   <p>superadmin@travel.com · admin@travel.com · employee@travel.com</p>
                 </div>
-              </div>
+              </div> */}
             </CardBody>
           </Card>
         </div>
