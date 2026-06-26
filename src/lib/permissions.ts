@@ -11,8 +11,14 @@ type Resource =
 
 const USER_RESOURCES: Resource[] = ['customers', 'bookings'];
 
-export function getUserRole(user: User | null): User['role']['name'] | null {
-  return user?.role?.name ?? null;
+export function getUserRole(user: User | null): 'SUPER_ADMIN' | 'ADMIN' | 'USER' | null {
+  const role = user?.role as User['role'] | string | undefined;
+  if (!role) return null;
+  if (typeof role === 'string') {
+    if (role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'USER') return role;
+    return null;
+  }
+  return role.name ?? null;
 }
 
 export function isSuperAdmin(user: User | null): boolean {
@@ -44,6 +50,10 @@ export function canCreateResource(user: User | null, resource: Resource): boolea
 
 export function canManageUsers(user: User | null): boolean {
   return isAdminOrAbove(user);
+}
+
+export function canInviteUsers(user: User | null): boolean {
+  return isSuperAdmin(user);
 }
 
 export function canChangeUserRole(user: User | null): boolean {

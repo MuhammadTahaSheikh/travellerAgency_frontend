@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { toggleSidebar, closeMobileMenu } from '@/store/slices/uiSlice';
+import { getUserRole } from '@/lib/permissions';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'USER'] },
@@ -53,7 +54,7 @@ export function Sidebar() {
   const dispatch = useAppDispatch();
   const sidebarOpen = useAppSelector((s) => s.ui.sidebarOpen);
   const mobileMenuOpen = useAppSelector((s) => s.ui.mobileMenuOpen);
-  const userRole = useAppSelector((s) => s.auth.user?.role.name);
+  const userRole = useAppSelector((s) => getUserRole(s.auth.user));
 
   const filteredNav = navItems.filter((item) => userRole && item.roles.includes(userRole));
 

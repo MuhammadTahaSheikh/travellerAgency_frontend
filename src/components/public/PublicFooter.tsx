@@ -55,7 +55,7 @@ export function PublicFooter({ company }: { company: PublicCompany }) {
         </div>
 
         <div className="mt-12 pt-8 border-t border-slate-800 flex flex-col sm:flex-row justify-between gap-4 text-xs text-slate-500">
-          <p>© {new Date().getFullYear()} {company.companyName}. All rights reserved.</p>
+          <p suppressHydrationWarning>© {new Date().getFullYear()} {company.companyName}. All rights reserved.</p>
           <p>Internal management system for authorized staff only.</p>
         </div>
       </div>

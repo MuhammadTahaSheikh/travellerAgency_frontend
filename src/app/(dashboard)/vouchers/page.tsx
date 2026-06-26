@@ -1,15 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ExternalLink, Share2 } from 'lucide-react';
+import { useSelector } from 'react-redux';
+import { ExternalLink, Share2, MessageCircle } from 'lucide-react';
 import api from '@/lib/api';
+import { RootState } from '@/store';
 import { Voucher, ApiResponse } from '@/types';
+import { shareVoucherViaWhatsApp } from '@/lib/whatsapp';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody } from '@/components/ui/Card';
 import { PageHeader, LoadingSpinner, Badge, formatDate, EmptyState } from '@/components/ui/Common';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
 export default function VouchersPage() {
+  const user = useSelector((state: RootState) => state.auth.user);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -35,11 +39,11 @@ export default function VouchersPage() {
     }
   };
 
-  const handleShare = async (id: string) => {
+  const handleShare = async (voucher: Voucher) => {
     try {
-      await api.post(`/vouchers/${id}/share`, {});
+      await api.post(`/vouchers/${voucher.id}/share`, {});
+      shareVoucherViaWhatsApp(voucher, user);
       loadData();
-      alert('Voucher marked as shared');
     } catch (err) {
       alert((err as Error).message);
     }
@@ -82,8 +86,9 @@ export default function VouchersPage() {
                         <TableCell align="right">
                           <div className="flex justify-end gap-2">
                             <Button variant="secondary" onClick={() => openVoucher(v.id)}><ExternalLink className="w-4 h-4" /></Button>
+                            <Button variant="secondary" onClick={() => shareVoucherViaWhatsApp(v, user)} title="Send via WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
                             {v.status !== 'SHARED' && (
-                              <Button variant="secondary" onClick={() => handleShare(v.id)}><Share2 className="w-4 h-4" /></Button>
+                              <Button variant="secondary" onClick={() => handleShare(v)} title="Mark shared"><Share2 className="w-4 h-4" /></Button>
                             )}
                           </div>
                         </TableCell>

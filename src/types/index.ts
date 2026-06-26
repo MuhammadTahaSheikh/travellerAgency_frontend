@@ -5,6 +5,8 @@ export interface User {
   lastName: string;
   phone?: string;
   isActive: boolean;
+  invitePending?: boolean;
+  inviteExpired?: boolean;
   role: {
     id: string;
     name: 'SUPER_ADMIN' | 'ADMIN' | 'USER';

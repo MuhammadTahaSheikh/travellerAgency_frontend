@@ -12,12 +12,10 @@ interface AuthState {
   error: string | null;
 }
 
-const stored = readStoredAuth();
-
 const initialState: AuthState = {
-  user: stored?.user ?? null,
-  token: stored?.token ?? null,
-  isAuthenticated: Boolean(stored),
+  user: null,
+  token: null,
+  isAuthenticated: false,
   initialized: false,
   loading: false,
   error: null,

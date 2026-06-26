@@ -6,8 +6,9 @@ import { Plus, CheckCircle } from 'lucide-react';
 import api from '@/lib/api';
 import { buildQueryString } from '@/lib/query';
 import { RootState } from '@/store';
-import { Invoice, Account, Payment, ApiResponse } from '@/types';
+import { Invoice, Account, Payment, Voucher, ApiResponse } from '@/types';
 import { canDeleteResource } from '@/lib/permissions';
+import { shareVoucherViaWhatsApp } from '@/lib/whatsapp';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -77,7 +78,8 @@ export default function PaymentsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/payments', { ...form, amount: parseFloat(form.amount) });
+      const res = await api.post<ApiResponse<Payment> & { voucher?: Voucher | null }>('/payments', { ...form, amount: parseFloat(form.amount) });
+      if (res.voucher) shareVoucherViaWhatsApp(res.voucher, user);
       setShowForm(false);
       loadData();
     } catch (err) {
@@ -89,7 +91,8 @@ export default function PaymentsPage() {
 
   const handleVerify = async (p: PaymentRow) => {
     try {
-      await api.post(`/payments/${p.id}/verify`, {});
+      const res = await api.post<ApiResponse<Payment> & { voucher?: Voucher | null }>(`/payments/${p.id}/verify`, {});
+      if (res.voucher) shareVoucherViaWhatsApp(res.voucher, user);
       loadData();
     } catch (err) {
       alert((err as Error).message);

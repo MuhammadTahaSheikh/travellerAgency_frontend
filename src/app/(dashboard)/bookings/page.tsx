@@ -6,8 +6,9 @@ import { Plus, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
 import { buildQueryString } from '@/lib/query';
 import { RootState } from '@/store';
-import { Booking, Customer, Package, Vendor, BookingServiceItem, ApiResponse } from '@/types';
+import { Booking, Customer, Package, Vendor, BookingServiceItem, Invoice, ApiResponse } from '@/types';
 import { canCreateResource, canEditResource, canDeleteResource } from '@/lib/permissions';
+import { shareInvoiceViaWhatsApp } from '@/lib/whatsapp';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -158,11 +159,15 @@ export default function BookingsPage() {
       })),
     };
     try {
+      let invoice: Invoice | null | undefined;
       if (editingId) {
-        await api.put(`/bookings/${editingId}`, payload);
+        const res = await api.put<ApiResponse<Booking> & { invoice?: Invoice | null }>(`/bookings/${editingId}`, payload);
+        invoice = res.invoice;
       } else {
-        await api.post('/bookings', payload);
+        const res = await api.post<ApiResponse<Booking> & { invoice?: Invoice | null }>('/bookings', payload);
+        invoice = res.invoice;
       }
+      if (invoice) shareInvoiceViaWhatsApp(invoice, user);
       resetForm();
       loadData();
     } catch (err) {

@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { initAuth, logout } from '@/store/slices/authSlice';
+import { logout, loadUser } from '@/store/slices/authSlice';
 import { fetchAppSettings } from '@/store/slices/settingsSlice';
 import { fetchUnreadCount } from '@/store/slices/notificationSlice';
 import { setSidebarOpen } from '@/store/slices/uiSlice';
@@ -11,15 +11,15 @@ import { setUnauthorizedHandler } from '@/lib/authSession';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 
+function AuthLoadingShell() {
+  return <div className="min-h-screen bg-slate-50" aria-busy="true" />;
+}
+
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { isAuthenticated, initialized } = useAppSelector((s) => s.auth);
   const sidebarOpen = useAppSelector((s) => s.ui.sidebarOpen);
-
-  useEffect(() => {
-    dispatch(initAuth());
-  }, [dispatch]);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
@@ -39,6 +39,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
     dispatch(fetchAppSettings());
     dispatch(fetchUnreadCount());
+    dispatch(loadUser());
   }, [initialized, isAuthenticated, router, dispatch]);
 
   useEffect(() => {
@@ -52,7 +53,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('resize', handleResize);
   }, [dispatch]);
 
-  if (!initialized || !isAuthenticated) return null;
+  if (!initialized || !isAuthenticated) {
+    return <AuthLoadingShell />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">

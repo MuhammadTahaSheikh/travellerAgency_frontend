@@ -5,6 +5,7 @@ import { Bell, LogOut, Menu, User } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { logout } from '@/store/slices/authSlice';
 import { toggleMobileMenu } from '@/store/slices/uiSlice';
+import { getUserRole } from '@/lib/permissions';
 import Link from 'next/link';
 
 export function Header() {
@@ -13,6 +14,7 @@ export function Header() {
   const user = useAppSelector((s) => s.auth.user);
   const unreadCount = useAppSelector((s) => s.notifications.unreadCount);
   const sidebarOpen = useAppSelector((s) => s.ui.sidebarOpen);
+  const roleName = getUserRole(user);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -67,7 +69,7 @@ export function Header() {
                   {user?.firstName} {user?.lastName}
                 </p>
                 <p className="text-[11px] text-slate-500 capitalize">
-                  {user?.role.name.replace('_', ' ').toLowerCase()}
+                  {roleName?.replace('_', ' ').toLowerCase()}
                 </p>
               </div>
               <button
