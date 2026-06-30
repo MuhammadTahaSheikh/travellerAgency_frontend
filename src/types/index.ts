@@ -16,8 +16,13 @@ export interface User {
 
 export interface Customer {
   id: string;
+  customerType?: 'B2C' | 'B2B';
   firstName: string;
   lastName: string;
+  companyName?: string;
+  contactPerson?: string;
+  ntn?: string;
+  tradePartnerId?: string;
   email?: string;
   phone: string;
   address?: string;
@@ -43,7 +48,7 @@ export interface Package {
 
 export interface BookingServiceItem {
   id?: string;
-  serviceType: 'PACKAGE' | 'TICKET' | 'VISA' | 'HOTEL';
+  serviceType: 'PACKAGE' | 'TICKET' | 'VISA' | 'HOTEL' | 'TRANSPORT';
   description: string;
   amount: number;
   costAmount?: number;
@@ -85,7 +90,10 @@ export interface InvoiceItem {
   quantity: number;
   unitPrice: number;
   amount: number;
+  costAmount?: number;
   serviceType?: string;
+  vendorId?: string;
+  details?: Record<string, string>;
 }
 
 export interface Invoice {
@@ -100,6 +108,7 @@ export interface Invoice {
   issueDate: string;
   dueDate: string;
   confirmedAt?: string;
+  approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
   customer?: Customer;
   booking?: Booking;
   items?: InvoiceItem[];
@@ -109,6 +118,10 @@ export interface Payment {
   id: string;
   paymentNumber: string;
   amount: number;
+  currency?: 'PKR' | 'SAR';
+  exchangeRate?: number;
+  amountPkr?: number;
+  amountSar?: number;
   method: string;
   paymentDate: string;
   verificationStatus: 'PENDING' | 'VERIFIED' | 'REJECTED';
@@ -118,21 +131,31 @@ export interface Payment {
 export interface Voucher {
   id: string;
   voucherNumber: string;
-  hotelName: string;
-  checkInDate: string;
+  voucherFormat?: 'COMPLETE' | 'HOTEL' | 'TRANSPORT';
+  hotelName?: string;
+  checkInDate?: string;
   checkOutDate?: string;
   guestName: string;
   roomDetails?: string;
+  paymentStatus?: string;
+  remainingBalance?: number;
   status: 'DRAFT' | 'ISSUED' | 'SHARED';
   booking?: Booking;
+  invoice?: Invoice;
+  payment?: Payment;
 }
 
 export interface CheckInRecord {
   id: string;
-  hotelName: string;
-  checkInDate: string;
+  scheduleType?: 'HOTEL' | 'TRANSPORT' | 'TICKET' | 'VISA' | 'PACKAGE';
+  hotelName?: string;
+  checkInDate?: string;
+  transportDate?: string;
+  pickupLocation?: string;
+  dropoffLocation?: string;
   guestName?: string;
   roomDetails?: string;
+  vendorPosted?: boolean;
   reminderSent: boolean;
   booking?: Booking;
 }
@@ -140,14 +163,38 @@ export interface CheckInRecord {
 export interface CustomerLedger {
   customer: Customer;
   account?: Account;
+  ledgerDetail?: { currency: string; balancePkr: number; balanceSar: number; balance: number };
   summary: {
     totalBilled: number;
     totalPaid: number;
     outstanding: number;
     ledgerBalance: number;
+    ledgerBalancePkr?: number;
+    ledgerBalanceSar?: number;
   };
   invoices: Invoice[];
   bookings: { id: string; bookingNumber: string; totalAmount: number; paidAmount: number; status: string }[];
+  transactions?: LedgerTransactionRow[];
+}
+
+export interface LedgerTransactionRow {
+  id: string;
+  debit: number;
+  credit: number;
+  currency?: string;
+  exchangeRate?: number;
+  amountPkr?: number;
+  amountSar?: number;
+  paymentMethod?: string;
+  remarks?: string;
+  attachmentPath?: string;
+  description?: string;
+  runningBalance?: number;
+  runningBalancePkr?: number;
+  runningBalanceSar?: number;
+  journalEntry: { entryNumber: string; date: string; description: string };
+  account: { name: string; type?: string };
+  bankAccount?: { name: string; type?: string } | null;
 }
 
 export interface Account {
@@ -156,6 +203,8 @@ export interface Account {
   code: string;
   type: 'CASH' | 'BANK' | 'CUSTOMER' | 'SUPPLIER' | 'EMPLOYEE';
   balance: number;
+  balancePkr?: number;
+  balanceSar?: number;
   isActive: boolean;
   customerId?: string | null;
   vendorId?: string | null;
@@ -202,8 +251,14 @@ export interface DashboardStats {
   totalPackages: number;
   totalInvoices: number;
   overdueInvoices: number;
+  pendingApprovals?: number;
   totalRevenue: number;
+  totalSale?: number;
   totalExpenses: number;
+  paidExpenses?: number;
+  actualExpenses?: number;
+  pendingExpenses?: number;
+  estimatedProfit?: number;
   netProfit: number;
   unreadNotifications: number;
 }

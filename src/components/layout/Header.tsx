@@ -6,6 +6,7 @@ import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { logout } from '@/store/slices/authSlice';
 import { toggleMobileMenu } from '@/store/slices/uiSlice';
 import { getUserRole } from '@/lib/permissions';
+import { Logo } from '@/components/brand/Logo';
 import Link from 'next/link';
 
 export function Header() {
@@ -40,8 +41,7 @@ export function Header() {
               <Menu className="w-5 h-5" />
             </button>
             <div className="lg:hidden">
-              <p className="text-sm font-bold text-slate-900">Moazin Travel</p>
-              <p className="text-[10px] text-slate-500">Management System</p>
+              <Logo size="sm" showText subtitle="Management System" subtitleClassName="text-slate-500" />
             </div>
           </div>
 

@@ -1,13 +1,20 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useSelector } from 'react-redux';
+import { Plus, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
 import { buildQueryString } from '@/lib/query';
+import { uploadAttachment } from '@/lib/upload';
+import { RootState } from '@/store';
+import { isAdminOrAbove } from '@/lib/permissions';
+import { Button } from '@/components/ui/Button';
+import { Input, Select, Textarea } from '@/components/ui/Input';
 import { Account, ApiResponse, LedgerAccountGroup, TrialBalanceRow } from '@/types';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
 import { PageHeader, LoadingSpinner, formatCurrency, formatDate, TabGroup, EmptyState } from '@/components/ui/Common';
-import { Select } from '@/components/ui/Input';
+import { LedgerTransactionTable, LedgerTransactionRow } from '@/components/ledger/LedgerTransactionTable';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
 interface JournalEntry {
@@ -29,6 +36,22 @@ interface LedgerTransaction {
 
 type AccountGroupKey = 'all' | 'company' | 'customers' | 'vendors' | 'employees';
 
+type JournalLineForm = {
+  accountId: string;
+  debit: string;
+  credit: string;
+  description: string;
+};
+
+const emptyJournalLine = (): JournalLineForm => ({ accountId: '', debit: '', credit: '', description: '' });
+
+const emptyJournalForm = {
+  description: '',
+  date: '',
+  reference: '',
+  notes: '',
+};
+
 const groupFilters: { id: AccountGroupKey; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'company', label: 'Company' },
@@ -37,16 +60,21 @@ const groupFilters: { id: AccountGroupKey; label: string }[] = [
   { id: 'employees', label: 'Employees' },
 ];
 
-function AccountCard({ acc }: { acc: Account }) {
+function AccountCard({ acc, currency, onView }: { acc: Account; currency: 'PKR' | 'SAR'; onView?: () => void }) {
   const subtitle =
-    acc.customer ? `${acc.customer.firstName} ${acc.customer.lastName}` :
+    acc.customer ? (acc.customer as { companyName?: string; firstName?: string; lastName?: string; tradePartnerId?: string }).tradePartnerId
+      ? `${(acc.customer as { tradePartnerId?: string }).tradePartnerId}`
+      : `${acc.customer?.firstName} ${acc.customer?.lastName}` :
     acc.vendor ? acc.vendor.category :
     acc.employee ? `${acc.employee.firstName} ${acc.employee.lastName}` :
     acc.code;
 
+  const bal = currency === 'SAR' ? Number((acc as Account & { balanceSar?: number }).balanceSar || 0) : Number((acc as Account & { balancePkr?: number }).balancePkr ?? acc.balance);
+
   return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardBody>
+    <div className="hover:shadow-md transition-shadow cursor-pointer" onClick={onView} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onView?.()}>
+      <Card className="h-full">
+        <CardBody>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-500">
@@ -55,12 +83,15 @@ function AccountCard({ acc }: { acc: Account }) {
             <h3 className="font-bold text-slate-900 mt-2 truncate">{acc.name}</h3>
             <p className="text-xs text-slate-400 mt-0.5 truncate">{subtitle}</p>
           </div>
-          <p className={`text-lg sm:text-xl font-bold shrink-0 ${Number(acc.balance) >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
-            {formatCurrency(acc.balance)}
-          </p>
+          <div className="text-right shrink-0">
+            <p className={`text-lg sm:text-xl font-bold ${bal >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
+              {formatCurrency(bal)} <span className="text-xs font-normal">{currency}</span>
+            </p>
+          </div>
         </div>
-      </CardBody>
-    </Card>
+        </CardBody>
+      </Card>
+    </div>
   );
 }
 
@@ -68,10 +99,14 @@ function GroupSection({
   title,
   accounts,
   totalBalance,
+  currency,
+  onViewAccount,
 }: {
   title: string;
   accounts: Account[];
   totalBalance?: number;
+  currency: 'PKR' | 'SAR';
+  onViewAccount: (acc: Account) => void;
 }) {
   if (accounts.length === 0) return null;
   return (
@@ -89,7 +124,7 @@ function GroupSection({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {accounts.map((acc) => (
-          <AccountCard key={acc.id} acc={acc} />
+          <AccountCard key={acc.id} acc={acc} currency={currency} onView={() => onViewAccount(acc)} />
         ))}
       </div>
     </div>
@@ -127,10 +162,12 @@ function TrialBalanceTable({ rows }: { rows: TrialBalanceRow[] }) {
 }
 
 export default function LedgerPage() {
+  const user = useSelector((state: RootState) => state.auth.user);
+  const canManageJournal = isAdminOrAbove(user);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [grouped, setGrouped] = useState<Record<string, LedgerAccountGroup> | null>(null);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
-  const [ledgerTransactions, setLedgerTransactions] = useState<LedgerTransaction[]>([]);
+  const [ledgerTransactions, setLedgerTransactions] = useState<LedgerTransactionRow[]>([]);
   const [trialBalance, setTrialBalance] = useState<{
     accounts: TrialBalanceRow[];
     grouped?: Record<string, { label: string; accounts: TrialBalanceRow[] }>;
@@ -144,18 +181,26 @@ export default function LedgerPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [appliedDates, setAppliedDates] = useState({ startDate: '', endDate: '' });
+  const [currency, setCurrency] = useState<'PKR' | 'SAR'>('PKR');
+  const [accountDetail, setAccountDetail] = useState<{ account: Account; transactions: LedgerTransactionRow[] } | null>(null);
+  const [showJournalForm, setShowJournalForm] = useState(false);
+  const [journalForm, setJournalForm] = useState(emptyJournalForm);
+  const [journalLines, setJournalLines] = useState<JournalLineForm[]>([emptyJournalLine(), emptyJournalLine()]);
+  const [journalAttachment, setJournalAttachment] = useState<File | null>(null);
+  const [journalSaving, setJournalSaving] = useState(false);
 
-  const loadData = (dates = appliedDates, accountId = selectedAccountId) => {
+  const loadData = (dates = appliedDates, accountId = selectedAccountId, cur = currency) => {
     setLoading(true);
     const query = buildQueryString({
       startDate: dates.startDate,
       endDate: dates.endDate,
       accountId: accountId || undefined,
+      currency: cur,
     });
     Promise.all([
       api.get<ApiResponse<Account[]> & { grouped: Record<string, LedgerAccountGroup> }>('/ledger/accounts'),
       api.get<ApiResponse<JournalEntry[]>>(`/ledger/journal-entries${query}`),
-      api.get<ApiResponse<LedgerTransaction[]>>(`/ledger/general-ledger${query}`),
+      api.get<ApiResponse<LedgerTransactionRow[]> & { currency: string }>(`/ledger/general-ledger${query}`),
       api.get<ApiResponse<typeof trialBalance>>('/ledger/trial-balance'),
     ])
       .then(([accRes, jeRes, glRes, tbRes]) => {
@@ -167,6 +212,19 @@ export default function LedgerPage() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
+  };
+
+  const viewAccountLedger = async (acc: Account) => {
+    try {
+      const res = await api.get<ApiResponse<{ account: Account; transactions: LedgerTransactionRow[]; currency: string }>>(
+        `/ledger/accounts/${acc.id}/transactions?currency=${currency}`
+      );
+      setAccountDetail({ account: res.data!.account, transactions: res.data!.transactions || [] });
+      setActiveTab('ledger');
+      setSelectedAccountId(acc.id);
+    } catch (err) {
+      alert((err as Error).message);
+    }
   };
 
   useEffect(() => { loadData(); }, []);
@@ -207,6 +265,56 @@ export default function LedgerPage() {
     loadData(appliedDates, accountId);
   };
 
+  const journalDebitTotal = journalLines.reduce((s, l) => s + (parseFloat(l.debit) || 0), 0);
+  const journalCreditTotal = journalLines.reduce((s, l) => s + (parseFloat(l.credit) || 0), 0);
+
+  const resetJournalForm = () => {
+    setJournalForm(emptyJournalForm);
+    setJournalLines([emptyJournalLine(), emptyJournalLine()]);
+    setJournalAttachment(null);
+    setShowJournalForm(false);
+  };
+
+  const updateJournalLine = (idx: number, updates: Partial<JournalLineForm>) => {
+    setJournalLines(journalLines.map((line, i) => (i === idx ? { ...line, ...updates } : line)));
+  };
+
+  const removeJournalLine = (idx: number) => {
+    setJournalLines(journalLines.length > 2 ? journalLines.filter((_, i) => i !== idx) : journalLines);
+  };
+
+  const handleJournalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (Math.abs(journalDebitTotal - journalCreditTotal) > 0.01) {
+      alert('Journal entry must balance: total debits must equal total credits.');
+      return;
+    }
+    setJournalSaving(true);
+    try {
+      let receiptPath: string | undefined;
+      if (journalAttachment) receiptPath = await uploadAttachment(journalAttachment);
+      const lines = journalLines
+        .filter((l) => l.accountId && (parseFloat(l.debit) || parseFloat(l.credit)))
+        .map((l) => ({
+          accountId: l.accountId,
+          debit: parseFloat(l.debit) || 0,
+          credit: parseFloat(l.credit) || 0,
+          description: l.description || journalForm.description,
+        }));
+      await api.post('/ledger/journal-entries', {
+        ...journalForm,
+        receiptPath,
+        lines,
+      });
+      resetJournalForm();
+      loadData();
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setJournalSaving(false);
+    }
+  };
+
   const tabs = [
     { id: 'accounts' as const, label: 'Accounts' },
     { id: 'journal' as const, label: 'Journal Entries' },
@@ -218,8 +326,21 @@ export default function LedgerPage() {
     <div>
       <PageHeader
         title="Internal Ledger System"
-        subtitle="View balances by company, customer, vendor, or employee"
+        subtitle="Dual-currency ledgers (PKR / SAR) for company, customers, vendors, and employees"
       />
+
+      <div className="flex flex-wrap items-end gap-4 mb-4">
+        <Select
+          label="Currency view"
+          value={currency}
+          onChange={(e) => {
+            const cur = e.target.value as 'PKR' | 'SAR';
+            setCurrency(cur);
+            loadData(appliedDates, selectedAccountId, cur);
+          }}
+          options={[{ value: 'PKR', label: 'PKR (Pakistani Rupee)' }, { value: 'SAR', label: 'SAR (Saudi Riyal)' }]}
+        />
+      </div>
 
       {(activeTab === 'journal' || activeTab === 'ledger') && (
         <div className="space-y-4 mb-4">
@@ -280,33 +401,92 @@ export default function LedgerPage() {
                   title={grouped.company.label}
                   accounts={grouped.company.accounts}
                   totalBalance={grouped.company.totalBalance}
+                  currency={currency}
+                  onViewAccount={viewAccountLedger}
                 />
                 <GroupSection
                   title={grouped.customers.label}
                   accounts={grouped.customers.accounts}
                   totalBalance={grouped.customers.totalBalance}
+                  currency={currency}
+                  onViewAccount={viewAccountLedger}
                 />
                 <GroupSection
                   title={grouped.vendors.label}
                   accounts={grouped.vendors.accounts}
                   totalBalance={grouped.vendors.totalBalance}
+                  currency={currency}
+                  onViewAccount={viewAccountLedger}
                 />
                 <GroupSection
                   title={grouped.employees.label}
                   accounts={grouped.employees.accounts}
                   totalBalance={grouped.employees.totalBalance}
+                  currency={currency}
+                  onViewAccount={viewAccountLedger}
                 />
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filteredAccounts.map((acc) => (
-                  <AccountCard key={acc.id} acc={acc} />
+                  <AccountCard key={acc.id} acc={acc} currency={currency} onView={() => viewAccountLedger(acc)} />
                 ))}
               </div>
             )
           )}
 
           {activeTab === 'journal' && (
+            <>
+              {canManageJournal && (
+                <div className="mb-4 flex justify-end">
+                  <Button onClick={() => { resetJournalForm(); setShowJournalForm(true); }}>
+                    <Plus className="w-4 h-4 mr-2" />New Journal Entry
+                  </Button>
+                </div>
+              )}
+              {showJournalForm && (
+                <Card className="mb-6">
+                  <CardBody>
+                    <h3 className="font-bold text-slate-900 mb-4">Manual Journal Entry</h3>
+                    <form onSubmit={handleJournalSubmit} className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <Input label="Description" value={journalForm.description} onChange={(e) => setJournalForm({ ...journalForm, description: e.target.value })} required />
+                        <Input label="Date" type="date" value={journalForm.date} onChange={(e) => setJournalForm({ ...journalForm, date: e.target.value })} />
+                        <Input label="Reference" value={journalForm.reference} onChange={(e) => setJournalForm({ ...journalForm, reference: e.target.value })} />
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Attachment (optional)</label>
+                          <input type="file" accept="image/*,.pdf" onChange={(e) => setJournalAttachment(e.target.files?.[0] || null)} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-teal-50 file:text-teal-700" />
+                        </div>
+                      </div>
+                      <Textarea label="Notes" value={journalForm.notes} onChange={(e) => setJournalForm({ ...journalForm, notes: e.target.value })} rows={2} />
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <h4 className="font-semibold text-slate-800">Lines</h4>
+                          <Button type="button" variant="secondary" onClick={() => setJournalLines([...journalLines, emptyJournalLine()])}>Add Line</Button>
+                        </div>
+                        {journalLines.map((line, idx) => (
+                          <div key={idx} className="grid grid-cols-1 md:grid-cols-5 gap-3 p-3 bg-slate-50 rounded-xl relative">
+                            <button type="button" onClick={() => removeJournalLine(idx)} className="absolute top-2 right-2 text-red-500 hover:text-red-700" title="Remove line">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                            <Select label="Account" value={line.accountId} onChange={(e) => updateJournalLine(idx, { accountId: e.target.value })} options={[{ value: '', label: 'Select account' }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]} required />
+                            <Input label="Debit" type="number" value={line.debit} onChange={(e) => updateJournalLine(idx, { debit: e.target.value, credit: e.target.value ? '' : line.credit })} />
+                            <Input label="Credit" type="number" value={line.credit} onChange={(e) => updateJournalLine(idx, { credit: e.target.value, debit: e.target.value ? '' : line.debit })} />
+                            <Input label="Line note" value={line.description} onChange={(e) => updateJournalLine(idx, { description: e.target.value })} className="md:col-span-2" />
+                          </div>
+                        ))}
+                        <p className={`text-sm ${Math.abs(journalDebitTotal - journalCreditTotal) < 0.01 ? 'text-teal-700' : 'text-red-600'}`}>
+                          Debits: {formatCurrency(journalDebitTotal)} · Credits: {formatCurrency(journalCreditTotal)}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button type="submit" loading={journalSaving}>Post Entry</Button>
+                        <Button type="button" variant="secondary" onClick={resetJournalForm}>Cancel</Button>
+                      </div>
+                    </form>
+                  </CardBody>
+                </Card>
+              )}
             <Card>
               <CardBody className="p-0 sm:p-0">
                 {journalEntries.length === 0 ? (
@@ -343,40 +523,25 @@ export default function LedgerPage() {
                 )}
               </CardBody>
             </Card>
+            </>
           )}
 
           {activeTab === 'ledger' && (
             <Card>
               <CardBody className="p-0 sm:p-0">
-                {ledgerTransactions.length === 0 ? (
+                {accountDetail && (
+                  <div className="p-4 border-b border-slate-100 bg-slate-50">
+                    <h3 className="font-bold">{accountDetail.account.name}</h3>
+                    <p className="text-sm text-slate-500">Account ledger — {currency} view</p>
+                  </div>
+                )}
+                {(accountDetail?.transactions.length || ledgerTransactions.length) === 0 ? (
                   <EmptyState message="No ledger transactions for the selected period." />
                 ) : (
-                <TableWrapper>
-                <Table>
-                  <TableHead>
-                    <tr>
-                      <TableHeaderCell>Date</TableHeaderCell>
-                      <TableHeaderCell>Entry #</TableHeaderCell>
-                      <TableHeaderCell>Account</TableHeaderCell>
-                      <TableHeaderCell className="hidden md:table-cell">Description</TableHeaderCell>
-                      <TableHeaderCell align="right">Debit</TableHeaderCell>
-                      <TableHeaderCell align="right">Credit</TableHeaderCell>
-                    </tr>
-                  </TableHead>
-                  <TableBody>
-                    {ledgerTransactions.map((t) => (
-                      <TableRow key={t.id}>
-                        <TableCell className="text-slate-500">{formatDate(t.journalEntry.date)}</TableCell>
-                        <TableCell className="font-semibold text-slate-900">{t.journalEntry.entryNumber}</TableCell>
-                        <TableCell>{t.account.name}</TableCell>
-                        <TableCell className="hidden md:table-cell">{t.description || t.journalEntry.description}</TableCell>
-                        <TableCell align="right">{Number(t.debit) > 0 ? formatCurrency(t.debit) : '—'}</TableCell>
-                        <TableCell align="right">{Number(t.credit) > 0 ? formatCurrency(t.credit) : '—'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                </TableWrapper>
+                  <LedgerTransactionTable
+                    rows={(accountDetail?.transactions || ledgerTransactions) as LedgerTransactionRow[]}
+                    currency={currency}
+                  />
                 )}
               </CardBody>
             </Card>

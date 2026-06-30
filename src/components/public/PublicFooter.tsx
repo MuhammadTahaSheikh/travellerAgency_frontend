@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Plane, Mail, Phone, MapPin } from 'lucide-react';
+import { Mail, Phone, MapPin } from 'lucide-react';
+import { Logo } from '@/components/brand/Logo';
 import { PublicCompany } from '@/lib/publicApi';
 
 export function PublicFooter({ company }: { company: PublicCompany }) {
@@ -8,11 +9,8 @@ export function PublicFooter({ company }: { company: PublicCompany }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 lg:py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
           <div className="lg:col-span-2">
-            <div className="flex items-center gap-2.5 mb-4">
-              <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-teal-600 text-white">
-                <Plane className="w-4 h-4" />
-              </span>
-              <span className="font-bold text-white text-lg">{company.companyName}</span>
+            <div className="mb-4">
+              <Logo size="sm" showText textClassName="text-white text-lg" subtitleClassName="text-slate-400" />
             </div>
             <p className="text-sm text-slate-400 max-w-md leading-relaxed">
               Your trusted partner for Umrah, leisure, and cultural journeys. Curated packages,

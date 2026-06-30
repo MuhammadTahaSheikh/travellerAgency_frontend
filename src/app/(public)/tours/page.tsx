@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { getPublicPackages, getPublicCompany } from '@/lib/publicApi';
 import { PublicPackageGrid } from '@/components/public/PublicPackageCard';
 import { generatePublicMetadata } from '@/components/public/PublicShell';
+import { BRAND_NAME } from '@/lib/brand';
 
 export async function generateMetadata() {
   return generatePublicMetadata('Tours & Packages', 'Browse all available travel and Umrah packages.');
@@ -12,7 +13,7 @@ export default async function ToursPage() {
   const [packages, company] = await Promise.all([
     getPublicPackages().catch(() => []),
     getPublicCompany().catch(() => ({
-      companyName: 'Moazin Travel Agency',
+      companyName: BRAND_NAME,
       email: '',
       phone: '',
       address: '',

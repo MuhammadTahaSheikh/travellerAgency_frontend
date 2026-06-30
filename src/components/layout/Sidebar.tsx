@@ -19,16 +19,17 @@ import {
   Shield,
   ChevronLeft,
   ChevronRight,
-  Plane,
   Activity,
   X,
   Building2,
   Ticket,
+  ClipboardCheck,
   CalendarDays,
 } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { toggleSidebar, closeMobileMenu } from '@/store/slices/uiSlice';
 import { getUserRole } from '@/lib/permissions';
+import { Logo } from '@/components/brand/Logo';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'USER'] },
@@ -37,9 +38,11 @@ const navItems = [
   { href: '/bookings', label: 'Bookings', icon: CalendarCheck, roles: ['SUPER_ADMIN', 'ADMIN', 'USER'] },
   { href: '/invoices', label: 'Invoices', icon: FileText, roles: ['SUPER_ADMIN', 'ADMIN', 'USER'] },
   { href: '/payments', label: 'Payments', icon: CreditCard, roles: ['SUPER_ADMIN', 'ADMIN', 'USER'] },
+  { href: '/approvals', label: 'Approvals', icon: ClipboardCheck, roles: ['SUPER_ADMIN'] },
   { href: '/vouchers', label: 'Vouchers', icon: Ticket, roles: ['SUPER_ADMIN', 'ADMIN', 'USER'] },
-  { href: '/check-ins', label: 'Check-ins', icon: CalendarDays, roles: ['SUPER_ADMIN', 'ADMIN', 'USER'] },
+  { href: '/check-ins', label: 'Travel Schedules', icon: CalendarDays, roles: ['SUPER_ADMIN', 'ADMIN', 'USER'] },
   { href: '/vendors', label: 'Vendors', icon: Building2, roles: ['SUPER_ADMIN', 'ADMIN'] },
+  { href: '/vendor-postings', label: 'Vendor Postings', icon: Receipt, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/expenses', label: 'Expenses', icon: Receipt, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/ledger', label: 'Ledger', icon: BookOpen, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/reports', label: 'Reports', icon: BarChart3, roles: ['SUPER_ADMIN', 'ADMIN'] },
@@ -87,15 +90,13 @@ export function Sidebar() {
       >
         <div className="flex items-center justify-between gap-3 px-4 py-5 border-b border-slate-800/80">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2.5 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-xl shadow-lg shadow-teal-500/20 shrink-0">
-              <Plane className="w-5 h-5" />
-            </div>
-            {(sidebarOpen || mobileMenuOpen) && (
-              <div className="min-w-0 lg:block">
-                <h2 className="font-bold text-sm truncate">Moazin Travel</h2>
-                <p className="text-[11px] text-slate-400 truncate">Agency Management</p>
-              </div>
-            )}
+            <Logo
+              size="sm"
+              showText={sidebarOpen || mobileMenuOpen}
+              textClassName="text-white"
+              subtitle="Agency Management"
+              subtitleClassName="text-slate-400"
+            />
           </div>
           <button
             onClick={() => dispatch(closeMobileMenu())}

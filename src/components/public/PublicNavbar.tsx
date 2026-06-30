@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Menu, X, Plane, LogIn } from 'lucide-react';
+import { Menu, X, LogIn } from 'lucide-react';
+import { Logo } from '@/components/brand/Logo';
+import { BRAND_NAME } from '@/lib/brand';
 
 const navLinks = [
   { href: '/', label: 'Home' },
@@ -18,11 +20,11 @@ export function PublicNavbar({ companyName }: { companyName: string }) {
     <header className="fixed top-0 inset-x-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200/80">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-[4.25rem]">
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-teal-600 text-white shadow-lg shadow-teal-600/25 group-hover:scale-105 transition-transform">
-              <Plane className="w-4 h-4" />
-            </span>
-            <span className="font-bold text-slate-900 text-lg tracking-tight">{companyName}</span>
+          <Link href="/" className="flex items-center gap-2.5 group hover:opacity-90 transition-opacity">
+            <Logo size="sm" showText textClassName="text-slate-900 text-lg" />
+            {companyName !== BRAND_NAME && (
+              <span className="sr-only">{companyName}</span>
+            )}
           </Link>
 
           <nav className="hidden lg:flex items-center gap-8">

@@ -37,12 +37,12 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5 mb-6 sm:mb-8">
         <StatCard title="Total Customers" value={stats?.totalCustomers || 0} icon={<Users className="w-5 h-5" />} color="teal" />
         <StatCard title="Total Bookings" value={stats?.totalBookings || 0} subtitle={`${stats?.pendingBookings} pending`} icon={<CalendarCheck className="w-5 h-5" />} color="blue" />
-        <StatCard title="Total Revenue" value={formatCurrency(stats?.totalRevenue || 0)} icon={<DollarSign className="w-5 h-5" />} color="green" />
-        <StatCard title="Net Profit" value={formatCurrency(stats?.netProfit || 0)} icon={<TrendingUp className="w-5 h-5" />} color="purple" />
-        <StatCard title="Active Packages" value={stats?.totalPackages || 0} icon={<Package className="w-5 h-5" />} color="teal" />
-        <StatCard title="Total Invoices" value={stats?.totalInvoices || 0} subtitle={`${stats?.overdueInvoices} overdue`} icon={<FileText className="w-5 h-5" />} color="amber" />
-        <StatCard title="Total Expenses" value={formatCurrency(stats?.totalExpenses || 0)} icon={<Receipt className="w-5 h-5" />} color="red" />
-        <StatCard title="Confirmed Bookings" value={stats?.confirmedBookings || 0} icon={<CalendarCheck className="w-5 h-5" />} color="green" />
+        <StatCard title="Total Sale" value={formatCurrency(stats?.totalSale || stats?.totalRevenue || 0)} icon={<DollarSign className="w-5 h-5" />} color="green" />
+        <StatCard title="Pending Expenses" value={formatCurrency(stats?.pendingExpenses || 0)} icon={<Receipt className="w-5 h-5" />} color="amber" />
+        <StatCard title="Estimated Profit" value={formatCurrency(stats?.estimatedProfit || 0)} icon={<TrendingUp className="w-5 h-5" />} color="purple" />
+        <StatCard title="Net Profit" value={formatCurrency(stats?.netProfit || 0)} subtitle="After posted costs" icon={<TrendingUp className="w-5 h-5" />} color="teal" />
+        <StatCard title="Pending Approvals" value={stats?.pendingApprovals || 0} icon={<FileText className="w-5 h-5" />} color="amber" />
+        <StatCard title="Actual Expenses" value={formatCurrency(stats?.actualExpenses ?? stats?.paidExpenses ?? 0)} icon={<Receipt className="w-5 h-5" />} color="red" />
       </div>
 
       <Card>

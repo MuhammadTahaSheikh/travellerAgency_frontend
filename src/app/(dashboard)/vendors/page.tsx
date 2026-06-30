@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Wallet, BookOpen } from 'lucide-react';
 import api from '@/lib/api';
-import { Vendor, ApiResponse } from '@/types';
+import { Vendor, Account, ApiResponse } from '@/types';
+import { uploadAttachment } from '@/lib/upload';
+import { LedgerTransactionTable, LedgerTransactionRow } from '@/components/ledger/LedgerTransactionTable';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -30,6 +32,12 @@ export default function VendorsPage() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [payVendor, setPayVendor] = useState<Vendor | null>(null);
+  const [payForm, setPayForm] = useState({ accountId: '', amount: '', currency: 'PKR', exchangeRate: '75', method: 'BANK_TRANSFER', notes: '' });
+  const [payFile, setPayFile] = useState<File | null>(null);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [vendorLedger, setVendorLedger] = useState<{ vendor: Vendor; transactions: LedgerTransactionRow[] } | null>(null);
+  const [ledgerCurrency, setLedgerCurrency] = useState<'PKR' | 'SAR'>('PKR');
 
   const loadData = () => {
     setLoading(true);
@@ -37,11 +45,13 @@ export default function VendorsPage() {
     Promise.allSettled([
       api.get<ApiResponse<Vendor[]>>('/vendors'),
       api.get<ApiResponse<typeof payables>>('/vendors/payables'),
+      api.get<ApiResponse<Account[]>>('/payments/accounts'),
     ])
-      .then(([vendorsRes, payablesRes]) => {
+      .then(([vendorsRes, payablesRes, accRes]) => {
         if (vendorsRes.status === 'fulfilled') setVendors(vendorsRes.value.data || []);
         else setLoadError(vendorsRes.reason?.message || 'Failed to load vendors');
         if (payablesRes.status === 'fulfilled') setPayables(payablesRes.value.data || []);
+        if (accRes.status === 'fulfilled') setAccounts(accRes.value.data || []);
       })
       .finally(() => setLoading(false));
   };
@@ -65,6 +75,37 @@ export default function VendorsPage() {
 
   const payablesByVendorId = Object.fromEntries(payables.map((p) => [p.vendorId, p]));
 
+  const handlePayVendor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payVendor) return;
+    setSaving(true);
+    try {
+      let attachmentPath: string | undefined;
+      if (payFile) attachmentPath = await uploadAttachment(payFile);
+      await api.post(`/vendors/${payVendor.id}/pay`, {
+        ...payForm,
+        amount: parseFloat(payForm.amount),
+        exchangeRate: parseFloat(payForm.exchangeRate),
+        attachmentPath,
+      });
+      setPayVendor(null);
+      loadData();
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const viewVendorLedger = async (v: Vendor, currency = ledgerCurrency) => {
+    try {
+      const res = await api.get<ApiResponse<{ vendor: Vendor; transactions: LedgerTransactionRow[] }>>(`/vendors/${v.id}/ledger?currency=${currency}`);
+      setVendorLedger({ vendor: res.data!.vendor, transactions: res.data!.transactions || [] });
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -77,6 +118,41 @@ export default function VendorsPage() {
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{loadError}</div>
       )}
 
+      {payVendor && (
+        <Card className="mb-6">
+          <CardBody>
+            <h3 className="font-bold mb-4">Pay Vendor — {payVendor.name}</h3>
+            <form onSubmit={handlePayVendor} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Select label="From Account" value={payForm.accountId} onChange={(e) => setPayForm({ ...payForm, accountId: e.target.value })} options={[{ value: '', label: 'Select' }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]} required />
+              <Input label="Amount" type="number" value={payForm.amount} onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })} required />
+              <Select label="Currency" value={payForm.currency} onChange={(e) => setPayForm({ ...payForm, currency: e.target.value })} options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]} />
+              <Input label="Exchange Rate" type="number" value={payForm.exchangeRate} onChange={(e) => setPayForm({ ...payForm, exchangeRate: e.target.value })} />
+              <Input label="Notes" value={payForm.notes} onChange={(e) => setPayForm({ ...payForm, notes: e.target.value })} />
+              <div><label className="block text-sm font-medium mb-1">Proof</label><input type="file" accept="image/*,.pdf" onChange={(e) => setPayFile(e.target.files?.[0] || null)} /></div>
+              <div className="md:col-span-3 flex gap-2">
+                <Button type="submit" loading={saving}>Record Payment</Button>
+                <Button type="button" variant="secondary" onClick={() => setPayVendor(null)}>Cancel</Button>
+              </div>
+            </form>
+          </CardBody>
+        </Card>
+      )}
+
+      {vendorLedger && (
+        <Card className="mb-6">
+          <CardBody>
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="font-bold">Vendor Ledger — {vendorLedger.vendor.name}</h3>
+              <Button variant="secondary" onClick={() => setVendorLedger(null)}>Close</Button>
+            </div>
+            <div className="max-w-xs mb-4">
+              <Select label="Currency" value={ledgerCurrency} onChange={(e) => { const c = e.target.value as 'PKR' | 'SAR'; setLedgerCurrency(c); viewVendorLedger(vendorLedger.vendor, c); }} options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]} />
+            </div>
+            <LedgerTransactionTable rows={vendorLedger.transactions} currency={ledgerCurrency} />
+          </CardBody>
+        </Card>
+      )}
+
       {showForm && (
         <Card className="mb-6">
           <CardBody>
@@ -86,6 +162,7 @@ export default function VendorsPage() {
                 { value: 'HOTEL', label: 'Hotel' },
                 { value: 'VISA', label: 'Visa' },
                 { value: 'TICKETING', label: 'Ticketing' },
+                { value: 'TRANSPORT', label: 'Transport' },
                 { value: 'OTHER', label: 'Other' },
               ]} />
               <Input label="Contact Person" value={form.contactPerson} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} />
@@ -151,6 +228,7 @@ export default function VendorsPage() {
                       <TableHeaderCell>Contact</TableHeaderCell>
                       <TableHeaderCell>Outstanding</TableHeaderCell>
                       <TableHeaderCell>Ledger Balance</TableHeaderCell>
+                      <TableHeaderCell align="right">Actions</TableHeaderCell>
                     </tr>
                   </TableHead>
                   <TableBody>
@@ -169,6 +247,12 @@ export default function VendorsPage() {
                             <span title={inSync ? undefined : 'Ledger does not match outstanding — contact admin to reconcile'}>
                               {formatCurrency(ledger)}
                             </span>
+                          </TableCell>
+                          <TableCell align="right">
+                            <div className="flex justify-end gap-1">
+                              <Button variant="secondary" onClick={() => viewVendorLedger(v)} title="Ledger"><BookOpen className="w-4 h-4" /></Button>
+                              <Button variant="secondary" onClick={() => setPayVendor(v)} title="Pay vendor"><Wallet className="w-4 h-4" /></Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );

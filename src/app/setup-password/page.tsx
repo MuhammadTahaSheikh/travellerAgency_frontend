@@ -3,7 +3,9 @@
 import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plane, ArrowRight, CheckCircle } from 'lucide-react';
+import { ArrowRight, CheckCircle } from 'lucide-react';
+import { Logo } from '@/components/brand/Logo';
+import { BRAND_NAME } from '@/lib/brand';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -76,11 +78,11 @@ function SetupPasswordForm() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex p-3 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl mb-4 shadow-lg shadow-teal-500/25">
-            <Plane className="w-8 h-8 text-white" />
+          <div className="flex justify-center mb-4">
+            <Logo size="lg" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900">Set up your account</h1>
-          <p className="text-sm text-slate-500 mt-1">Create your password to join Moazin Travel</p>
+          <p className="text-sm text-slate-500 mt-1">Create your password to join {BRAND_NAME}</p>
         </div>
 
         <Card className="shadow-xl shadow-slate-200/60 border-0">

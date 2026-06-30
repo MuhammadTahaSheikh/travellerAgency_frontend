@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { Plus, CheckCircle, ExternalLink, MessageCircle } from 'lucide-react';
+import { Plus, CheckCircle, ExternalLink, MessageCircle, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
 import { buildQueryString } from '@/lib/query';
 import { RootState } from '@/store';
-import { Invoice, Customer, ApiResponse } from '@/types';
+import { Invoice, Customer, Vendor, ApiResponse } from '@/types';
 import { canCreateResource, canEditResource, canDeleteResource } from '@/lib/permissions';
 import { shareInvoiceViaWhatsApp } from '@/lib/whatsapp';
 import { Button } from '@/components/ui/Button';
@@ -17,16 +17,36 @@ import { PageHeader, LoadingSpinner, Badge, formatCurrency, formatDate, EmptySta
 import { RowActions, confirmDelete } from '@/components/ui/RowActions';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
+const SERVICE_OPTIONS = [
+  { value: 'HOTEL', label: 'Hotel' },
+  { value: 'TICKET', label: 'Air Ticket' },
+  { value: 'VISA', label: 'Visa' },
+  { value: 'TRANSPORT', label: 'Transportation' },
+];
+
+const emptyItem = () => ({
+  serviceType: 'HOTEL',
+  description: '',
+  quantity: 1,
+  unitPrice: '',
+  costAmount: '',
+  vendorId: '',
+  dueDate: '',
+  postingType: 'PENDING' as 'INSTANT' | 'PENDING',
+});
+
 const emptyForm = { customerId: '', subtotal: '', tax: '0', discount: '0', dueDate: '', status: 'SENT' };
 
 export default function InvoicesPage() {
   const user = useSelector((state: RootState) => state.auth.user);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [lineItems, setLineItems] = useState([emptyItem()]);
   const [saving, setSaving] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -38,10 +58,12 @@ export default function InvoicesPage() {
     Promise.all([
       api.get<ApiResponse<Invoice[]>>(`/invoices${query}`),
       api.get<ApiResponse<Customer[]>>('/customers'),
+      api.get<ApiResponse<Vendor[]>>('/vendors'),
     ])
-      .then(([invRes, custRes]) => {
+      .then(([invRes, custRes, vendRes]) => {
         setInvoices(invRes.data || []);
         setCustomers(custRes.data || []);
+        setVendors(vendRes.data || []);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -62,8 +84,13 @@ export default function InvoicesPage() {
     loadData({ startDate: '', endDate: '' });
   };
 
+  const removeLineItem = (idx: number) => {
+    setLineItems(lineItems.length > 1 ? lineItems.filter((_, i) => i !== idx) : [emptyItem()]);
+  };
+
   const resetForm = () => {
     setForm(emptyForm);
+    setLineItems([emptyItem()]);
     setEditingId(null);
     setShowForm(false);
   };
@@ -84,11 +111,30 @@ export default function InvoicesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    const items = lineItems
+      .filter((i) => i.description && i.unitPrice)
+      .map((i) => {
+        const unitPrice = parseFloat(i.unitPrice);
+        const qty = i.quantity || 1;
+        return {
+          serviceType: i.serviceType,
+          description: i.description,
+          quantity: qty,
+          unitPrice,
+          amount: unitPrice * qty,
+          costAmount: i.costAmount ? parseFloat(i.costAmount) : 0,
+          vendorId: i.vendorId || undefined,
+          dueDate: i.dueDate || undefined,
+          postingType: i.postingType,
+        };
+      });
+    const subtotal = items.reduce((s, i) => s + i.amount, 0);
     const payload = {
       ...form,
-      subtotal: parseFloat(form.subtotal),
+      subtotal,
       tax: parseFloat(form.tax),
       discount: parseFloat(form.discount),
+      items,
     };
     try {
       if (editingId) {
@@ -161,12 +207,49 @@ export default function InvoicesPage() {
         <Card className="mb-6">
           <CardBody>
             <h3 className="font-bold text-slate-900 mb-4">{editingId ? 'Edit Invoice' : 'New Invoice'}</h3>
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Select label="Customer" value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })} options={[{ value: '', label: 'Select customer' }, ...customers.map((c) => ({ value: c.id, label: `${c.firstName} ${c.lastName}` }))]} required />
-              <Input label="Subtotal" type="number" value={form.subtotal} onChange={(e) => setForm({ ...form, subtotal: e.target.value })} required />
-              <Input label="Tax" type="number" value={form.tax} onChange={(e) => setForm({ ...form, tax: e.target.value })} />
-              <Input label="Discount" type="number" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} />
-              <Input label="Due Date" type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} required />
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <Select label="Customer" value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })} options={[{ value: '', label: 'Select customer' }, ...customers.map((c) => ({ value: c.id, label: c.customerType === 'B2B' ? `${c.companyName} (${c.tradePartnerId || 'B2B'})` : `${c.firstName} ${c.lastName}` }))]} required />
+                <Input label="Tax" type="number" value={form.tax} onChange={(e) => setForm({ ...form, tax: e.target.value })} />
+                <Input label="Discount" type="number" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} />
+                <Input label="Due Date" type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} required />
+              </div>
+
+              {!editingId && (
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className="font-semibold text-slate-800">Services</h4>
+                    <Button type="button" variant="secondary" onClick={() => setLineItems([...lineItems, emptyItem()])}>Add Service</Button>
+                  </div>
+                  <div className="space-y-3">
+                    {lineItems.map((item, idx) => (
+                      <div key={idx} className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-8 gap-3 p-3 bg-slate-50 rounded-xl relative">
+                        <div className="absolute top-2 right-2">
+                          <button type="button" onClick={() => removeLineItem(idx)} className="text-red-500 hover:text-red-700" title="Remove service">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <Select label="Type" value={item.serviceType} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, serviceType: e.target.value }; setLineItems(next); }} options={SERVICE_OPTIONS} />
+                        <Input label="Description" value={item.description} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, description: e.target.value }; setLineItems(next); }} />
+                        <Input label="Unit Price" type="number" value={item.unitPrice} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, unitPrice: e.target.value }; setLineItems(next); }} />
+                        <Input label="Qty" type="number" value={String(item.quantity)} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, quantity: parseInt(e.target.value) || 1 }; setLineItems(next); }} />
+                        <Input label="Est. Cost" type="number" value={item.costAmount} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, costAmount: e.target.value }; setLineItems(next); }} />
+                        <Select label="Vendor" value={item.vendorId} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, vendorId: e.target.value }; setLineItems(next); }} options={[{ value: '', label: 'None' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))]} />
+                        <Input label="Due Date" type="date" value={item.dueDate} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, dueDate: e.target.value }; setLineItems(next); }} />
+                        <Select label="Vendor Post" value={item.postingType} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, postingType: e.target.value as 'INSTANT' | 'PENDING' }; setLineItems(next); }} options={[{ value: 'PENDING', label: 'Pending' }, { value: 'INSTANT', label: 'Instant' }]} />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-sm text-slate-500 mt-2">
+                    Subtotal: {formatCurrency(lineItems.reduce((s, i) => s + (parseFloat(i.unitPrice) || 0) * (i.quantity || 1), 0))}
+                  </p>
+                </div>
+              )}
+
+              {editingId && (
+                <Input label="Subtotal" type="number" value={form.subtotal} onChange={(e) => setForm({ ...form, subtotal: e.target.value })} required />
+              )}
+
               {editingId && (
                 <Select label="Status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} options={[
                   { value: 'DRAFT', label: 'Draft' },
@@ -177,7 +260,8 @@ export default function InvoicesPage() {
                   { value: 'CANCELLED', label: 'Cancelled' },
                 ]} />
               )}
-              <div className="md:col-span-2 lg:col-span-3 flex gap-2">
+
+              <div className="flex gap-2">
                 <Button type="submit" loading={saving}>{editingId ? 'Update Invoice' : 'Create Invoice'}</Button>
                 <Button type="button" variant="secondary" onClick={resetForm}>Cancel</Button>
               </div>

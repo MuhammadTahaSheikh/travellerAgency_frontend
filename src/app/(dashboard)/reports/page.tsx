@@ -1,12 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Download } from 'lucide-react';
 import api from '@/lib/api';
 import { buildQueryString } from '@/lib/query';
-import { ApiResponse } from '@/types';
+import { ApiResponse, Customer } from '@/types';
+import { LedgerTransactionTable, LedgerTransactionRow } from '@/components/ledger/LedgerTransactionTable';
+import { Select } from '@/components/ui/Input';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
 import { PageHeader, LoadingSpinner, formatCurrency, formatDate, TabGroup, EmptyState } from '@/components/ui/Common';
+import { Button } from '@/components/ui/Button';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
 const reportTypes = [
@@ -15,7 +19,8 @@ const reportTypes = [
   { id: 'cash-flow', label: 'Cash Flow', endpoint: '/reports/cash-flow' },
   { id: 'expenses', label: 'Expense Report', endpoint: '/reports/expenses' },
   { id: 'customer-outstanding', label: 'Outstanding', endpoint: '/reports/customer-outstanding' },
-  { id: 'daily-collection', label: 'Daily Collection', endpoint: '/reports/daily-collection' },
+  { id: 'customer-statement', label: 'Customer Statement', endpoint: '/reports/customer-statement', needsCustomer: true },
+  { id: 'b2b-partners', label: 'B2B Partners', endpoint: '/reports/b2b-partners' },
 ];
 
 const categoryLabels: Record<string, string> = {
@@ -93,10 +98,22 @@ export default function ReportsPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [appliedDates, setAppliedDates] = useState({ startDate: '', endDate: '' });
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [statementCustomerId, setStatementCustomerId] = useState('');
+  const [statementCurrency, setStatementCurrency] = useState<'PKR' | 'SAR'>('PKR');
+
+  useEffect(() => {
+    api.get<ApiResponse<Customer[]>>('/customers').then((res) => setCustomers(res.data || [])).catch(console.error);
+  }, []);
 
   const loadReport = (reportId: string, dates = appliedDates) => {
     const report = reportTypes.find((r) => r.id === reportId);
     if (!report) return;
+    if (reportId === 'customer-statement' && !statementCustomerId) {
+      setActiveReport(reportId);
+      setData(null);
+      return;
+    }
 
     setActiveReport(reportId);
     setLoading(true);
@@ -104,6 +121,8 @@ export default function ReportsPage() {
       startDate: dates.startDate,
       endDate: dates.endDate,
       date: dates.startDate || dates.endDate ? dates.startDate || dates.endDate : undefined,
+      customerId: reportId === 'customer-statement' ? statementCustomerId : undefined,
+      currency: reportId === 'customer-statement' ? statementCurrency : undefined,
     });
     api.get<ApiResponse<Record<string, unknown>>>(`${report.endpoint}${query}`)
       .then((res) => setData(res.data || null))
@@ -126,6 +145,21 @@ export default function ReportsPage() {
     loadReport(activeReport, { startDate: '', endDate: '' });
   };
 
+  const downloadStatement = async () => {
+    if (!statementCustomerId) {
+      alert('Please select a customer first.');
+      return;
+    }
+    try {
+      const query = buildQueryString({ customerId: statementCustomerId, currency: statementCurrency });
+      const html = await api.getHtml(`/reports/customer-statement/html${query}`);
+      const blob = new Blob([html], { type: 'text/html' });
+      window.open(URL.createObjectURL(blob), '_blank');
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
   return (
     <div>
       <PageHeader title="Financial Reports" subtitle="Income statement, P&L, cash flow, expenses, and customer outstanding" />
@@ -144,6 +178,32 @@ export default function ReportsPage() {
         onApply={handleApplyFilter}
         onClear={handleClearFilter}
       />
+
+      {activeReport === 'customer-statement' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 max-w-2xl">
+          <Select
+            label="Customer"
+            value={statementCustomerId}
+            onChange={(e) => setStatementCustomerId(e.target.value)}
+            options={[{ value: '', label: 'Select customer' }, ...customers.map((c) => ({
+              value: c.id,
+              label: c.customerType === 'B2B' ? `${c.companyName} (${c.tradePartnerId || 'B2B'})` : `${c.firstName} ${c.lastName}`,
+            }))]}
+          />
+          <Select
+            label="Currency"
+            value={statementCurrency}
+            onChange={(e) => setStatementCurrency(e.target.value as 'PKR' | 'SAR')}
+            options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]}
+          />
+          <div className="md:col-span-2 flex flex-wrap gap-2">
+            <Button onClick={() => loadReport('customer-statement')}>Generate Statement</Button>
+            <Button variant="secondary" onClick={downloadStatement} disabled={!statementCustomerId}>
+              <Download className="w-4 h-4 mr-2" />Download Statement
+            </Button>
+          </div>
+        </div>
+      )}
 
       {loading ? <LoadingSpinner label="Generating report..." /> : data ? (
         <Card>
@@ -236,6 +296,55 @@ export default function ReportsPage() {
                     </Table>
                   </TableWrapper>
                 )}
+              </div>
+            ) : activeReport === 'b2b-partners' ? (
+              <TableWrapper>
+                <Table>
+                  <TableHead>
+                    <tr>
+                      <TableHeaderCell>Trade Partner ID</TableHeaderCell>
+                      <TableHeaderCell>Company</TableHeaderCell>
+                      <TableHeaderCell>Contact</TableHeaderCell>
+                      <TableHeaderCell align="right">Billed</TableHeaderCell>
+                      <TableHeaderCell align="right">Paid</TableHeaderCell>
+                      <TableHeaderCell align="right">Outstanding</TableHeaderCell>
+                      <TableHeaderCell align="right">Balance PKR</TableHeaderCell>
+                    </tr>
+                  </TableHead>
+                  <TableBody>
+                    {(Array.isArray(data) ? data : []).map((p: { tradePartnerId?: string; companyName?: string; contactPerson?: string; phone?: string; totalBilled: number; totalPaid: number; outstanding: number; balancePkr: number }) => (
+                      <TableRow key={p.tradePartnerId || p.companyName}>
+                        <TableCell className="font-mono font-semibold">{p.tradePartnerId || '—'}</TableCell>
+                        <TableCell>{p.companyName}</TableCell>
+                        <TableCell>{p.contactPerson || p.phone || '—'}</TableCell>
+                        <TableCell align="right">{formatCurrency(p.totalBilled)}</TableCell>
+                        <TableCell align="right">{formatCurrency(p.totalPaid)}</TableCell>
+                        <TableCell align="right" className="text-amber-700">{formatCurrency(p.outstanding)}</TableCell>
+                        <TableCell align="right">{formatCurrency(p.balancePkr)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableWrapper>
+            ) : activeReport === 'customer-statement' ? (
+              <div className="space-y-6">
+                <div className="p-4 bg-slate-50 rounded-xl">
+                  <p className="font-bold text-lg">
+                    {(data.customer as { companyName?: string; customerType?: string; firstName: string; lastName: string })?.customerType === 'B2B'
+                      ? (data.customer as { companyName?: string }).companyName
+                      : `${(data.customer as { firstName: string }).firstName} ${(data.customer as { lastName: string }).lastName}`}
+                  </p>
+                  {(data.customer as { tradePartnerId?: string })?.tradePartnerId && (
+                    <p className="text-sm text-slate-500">{(data.customer as { tradePartnerId: string }).tradePartnerId}</p>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <StatCard label="Total Billed" value={formatCurrency(((data.summary as { totalBilled: number })?.totalBilled) || 0)} variant="blue" />
+                  <StatCard label="Total Paid" value={formatCurrency(((data.summary as { totalPaid: number })?.totalPaid) || 0)} variant="green" />
+                  <StatCard label="Outstanding" value={formatCurrency(((data.summary as { outstanding: number })?.outstanding) || 0)} variant="amber" />
+                  <StatCard label={`Balance (${statementCurrency})`} value={formatCurrency(statementCurrency === 'SAR' ? ((data.summary as { balanceSar: number })?.balanceSar || 0) : ((data.summary as { balancePkr: number })?.balancePkr || 0))} variant="teal" />
+                </div>
+                <LedgerTransactionTable rows={((data.transactions as LedgerTransactionRow[]) || [])} currency={statementCurrency} />
               </div>
             ) : activeReport === 'daily-collection' ? (
               <div className="space-y-6">

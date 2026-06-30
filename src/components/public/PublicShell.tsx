@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { PublicNavbar } from '@/components/public/PublicNavbar';
 import { PublicFooter } from '@/components/public/PublicFooter';
 import { getPublicCompany } from '@/lib/publicApi';
+import { BRAND_NAME } from '@/lib/brand';
 
 export async function generatePublicMetadata(title: string, description?: string): Promise<Metadata> {
   try {
@@ -11,7 +12,7 @@ export async function generatePublicMetadata(title: string, description?: string
       description: description || `Discover curated travel packages with ${company.companyName}.`,
     };
   } catch {
-    return { title: `${title} | Moazin Travel` };
+    return { title: `${title} | ${BRAND_NAME}` };
   }
 }
 
@@ -21,7 +22,7 @@ export async function PublicShell({
   children: React.ReactNode;
 }) {
   let company = {
-    companyName: 'Moazin Travel Agency',
+    companyName: BRAND_NAME,
     email: '',
     phone: '',
     address: '',

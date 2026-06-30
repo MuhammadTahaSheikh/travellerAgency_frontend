@@ -55,6 +55,22 @@ class ApiClient {
     return data as T;
   }
 
+  async uploadFile<T>(endpoint: string, file: File): Promise<T> {
+    const token = this.getToken();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || data.message || 'Upload failed');
+    return data as T;
+  }
+
   get<T>(endpoint: string) {
     return this.request<T>(endpoint);
   }

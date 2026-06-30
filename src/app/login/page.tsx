@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plane, ArrowRight, ArrowLeft } from 'lucide-react';
+import { ArrowRight, ArrowLeft } from 'lucide-react';
+import { Logo } from '@/components/brand/Logo';
+import { BRAND_NAME, BRAND_TAGLINE } from '@/lib/brand';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { login } from '@/store/slices/authSlice';
 import { Button } from '@/components/ui/Button';
@@ -35,8 +37,8 @@ export default function LoginPage() {
           <div className="absolute bottom-20 right-20 w-96 h-96 bg-cyan-500 rounded-full blur-[120px]" />
         </div>
         <div className="relative z-10 flex flex-col justify-center px-16 text-white">
-          <div className="inline-flex p-4 bg-white/10 backdrop-blur rounded-2xl w-fit mb-8 ring-1 ring-white/20">
-            <Plane className="w-10 h-10 text-teal-400" />
+          <div className="mb-8">
+            <Logo size="lg" imageClassName="bg-white/95 ring-1 ring-white/20 shadow-lg" />
           </div>
           <h1 className="text-4xl xl:text-5xl font-bold tracking-tight leading-tight">
             Manage your travel agency with confidence
@@ -76,11 +78,11 @@ export default function LoginPage() {
         <div className="w-full max-w-md animate-fade-in">
           <p className="text-xs font-bold uppercase tracking-wider text-teal-600 mb-2">Staff only</p>
           <div className="lg:hidden text-center mb-8">
-            <div className="inline-flex p-3 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl mb-4 shadow-lg shadow-teal-500/25">
-              <Plane className="w-8 h-8 text-white" />
+            <div className="flex justify-center mb-4">
+              <Logo size="lg" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-900">Moazin Travel</h1>
-            <p className="text-slate-500 mt-1 text-sm">Agency Management System</p>
+            <h1 className="text-2xl font-bold text-slate-900">{BRAND_NAME}</h1>
+            <p className="text-slate-500 mt-1 text-sm">{BRAND_TAGLINE}</p>
           </div>
 
           <Card className="shadow-xl shadow-slate-200/60 border-0">

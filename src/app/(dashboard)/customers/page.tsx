@@ -8,13 +8,26 @@ import { RootState } from '@/store';
 import { Customer, CustomerLedger, ApiResponse } from '@/types';
 import { canCreateResource, canEditResource, canDeleteResource } from '@/lib/permissions';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
+import { Input, Select } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
 import { PageHeader, LoadingSpinner, formatDate, formatCurrency, EmptyState } from '@/components/ui/Common';
 import { RowActions, confirmDelete } from '@/components/ui/RowActions';
+import { LedgerTransactionTable, LedgerTransactionRow } from '@/components/ledger/LedgerTransactionTable';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
-const emptyForm = { firstName: '', lastName: '', email: '', phone: '', address: '', passportNo: '' };
+const emptyForm = {
+  customerType: 'B2C' as 'B2C' | 'B2B',
+  firstName: '',
+  lastName: '',
+  companyName: '',
+  contactPerson: '',
+  ntn: '',
+  email: '',
+  phone: '',
+  address: '',
+  passportNo: '',
+  notes: '',
+};
 
 export default function CustomersPage() {
   const user = useSelector((state: RootState) => state.auth.user);
@@ -26,6 +39,8 @@ export default function CustomersPage() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [ledger, setLedger] = useState<CustomerLedger | null>(null);
+  const [ledgerTx, setLedgerTx] = useState<LedgerTransactionRow[]>([]);
+  const [ledgerCurrency, setLedgerCurrency] = useState<'PKR' | 'SAR'>('PKR');
   const [ledgerLoading, setLedgerLoading] = useState(false);
 
   const loadCustomers = () => {
@@ -47,12 +62,17 @@ export default function CustomersPage() {
   const startEdit = (c: Customer) => {
     setEditingId(c.id);
     setForm({
+      customerType: c.customerType || 'B2C',
       firstName: c.firstName,
       lastName: c.lastName,
+      companyName: c.companyName || '',
+      contactPerson: c.contactPerson || '',
+      ntn: c.ntn || '',
       email: c.email || '',
       phone: c.phone,
       address: c.address || '',
       passportNo: c.passportNo || '',
+      notes: c.notes || '',
     });
     setShowForm(true);
   };
@@ -75,11 +95,12 @@ export default function CustomersPage() {
     }
   };
 
-  const viewLedger = async (c: Customer) => {
+  const viewLedger = async (c: Customer, currency: 'PKR' | 'SAR' = ledgerCurrency) => {
     setLedgerLoading(true);
     try {
-      const res = await api.get<ApiResponse<CustomerLedger>>(`/customers/${c.id}/ledger`);
+      const res = await api.get<ApiResponse<CustomerLedger & { transactions: LedgerTransactionRow[] }>>(`/customers/${c.id}/ledger?currency=${currency}`);
       setLedger(res.data || null);
+      setLedgerTx((res.data?.transactions as LedgerTransactionRow[]) || []);
     } catch (err) {
       alert((err as Error).message);
     } finally {
@@ -112,12 +133,29 @@ export default function CustomersPage() {
           <CardBody>
             <h3 className="font-bold text-slate-900 mb-4">{editingId ? 'Edit Customer' : 'New Customer'}</h3>
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Input label="First Name" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} required />
-              <Input label="Last Name" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} required />
+              <Select
+                label="Customer Type"
+                value={form.customerType}
+                onChange={(e) => setForm({ ...form, customerType: e.target.value as 'B2C' | 'B2B' })}
+                options={[{ value: 'B2C', label: 'B2C (Individual)' }, { value: 'B2B', label: 'B2B (Trade Partner)' }]}
+              />
+              {form.customerType === 'B2B' ? (
+                <>
+                  <Input label="Company Name" value={form.companyName} onChange={(e) => setForm({ ...form, companyName: e.target.value })} required />
+                  <Input label="Contact Person" value={form.contactPerson} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} />
+                  <Input label="NTN (optional)" value={form.ntn} onChange={(e) => setForm({ ...form, ntn: e.target.value })} />
+                </>
+              ) : (
+                <>
+                  <Input label="First Name" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} required />
+                  <Input label="Last Name" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} required />
+                </>
+              )}
               <Input label="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
               <Input label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               <Input label="Passport No" value={form.passportNo} onChange={(e) => setForm({ ...form, passportNo: e.target.value })} />
               <Input label="Address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+              <Input label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="md:col-span-2" />
               <div className="md:col-span-2 lg:col-span-3 flex gap-2">
                 <Button type="submit" loading={saving}>{editingId ? 'Update Customer' : 'Save Customer'}</Button>
                 <Button type="button" variant="secondary" onClick={resetForm}>Cancel</Button>
@@ -149,7 +187,9 @@ export default function CustomersPage() {
                 <Table>
                   <TableHead>
                     <tr>
+                      <TableHeaderCell>Type</TableHeaderCell>
                       <TableHeaderCell>Name</TableHeaderCell>
+                      <TableHeaderCell className="hidden md:table-cell">Trade Partner ID</TableHeaderCell>
                       <TableHeaderCell>Phone</TableHeaderCell>
                       <TableHeaderCell className="hidden sm:table-cell">Email</TableHeaderCell>
                       <TableHeaderCell className="hidden md:table-cell">Passport</TableHeaderCell>
@@ -160,7 +200,11 @@ export default function CustomersPage() {
                   <TableBody>
                     {customers.map((c) => (
                       <TableRow key={c.id}>
-                        <TableCell className="font-semibold text-slate-900">{c.firstName} {c.lastName}</TableCell>
+                        <TableCell><span className="text-xs font-medium px-2 py-0.5 rounded bg-slate-100">{c.customerType || 'B2C'}</span></TableCell>
+                        <TableCell className="font-semibold text-slate-900">
+                          {c.customerType === 'B2B' ? c.companyName : `${c.firstName} ${c.lastName}`}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell font-mono text-sm">{c.tradePartnerId || '—'}</TableCell>
                         <TableCell>{c.phone}</TableCell>
                         <TableCell className="hidden sm:table-cell">{c.email || '—'}</TableCell>
                         <TableCell className="hidden md:table-cell">{c.passportNo || '—'}</TableCell>
@@ -191,8 +235,13 @@ export default function CustomersPage() {
           <CardBody>
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h3 className="font-bold text-lg">Customer Ledger — {ledger.customer.firstName} {ledger.customer.lastName}</h3>
-                <p className="text-sm text-slate-500">{ledger.customer.phone}</p>
+                <h3 className="font-bold text-lg">
+                  Customer Ledger — {ledger.customer.customerType === 'B2B' ? ledger.customer.companyName : `${ledger.customer.firstName} ${ledger.customer.lastName}`}
+                </h3>
+                <p className="text-sm text-slate-500">
+                  {ledger.customer.phone}
+                  {ledger.customer.tradePartnerId ? ` · ${ledger.customer.tradePartnerId}` : ''}
+                </p>
               </div>
               <Button variant="secondary" onClick={() => setLedger(null)}>Close</Button>
             </div>
@@ -200,8 +249,29 @@ export default function CustomersPage() {
               <div className="p-3 bg-slate-50 rounded-lg"><p className="text-xs text-slate-500">Total Billed</p><p className="font-bold">{formatCurrency(ledger.summary.totalBilled)}</p></div>
               <div className="p-3 bg-teal-50 rounded-lg"><p className="text-xs text-slate-500">Total Paid</p><p className="font-bold text-teal-700">{formatCurrency(ledger.summary.totalPaid)}</p></div>
               <div className="p-3 bg-amber-50 rounded-lg"><p className="text-xs text-slate-500">Outstanding</p><p className="font-bold text-amber-700">{formatCurrency(ledger.summary.outstanding)}</p></div>
-              <div className="p-3 bg-slate-50 rounded-lg"><p className="text-xs text-slate-500">Ledger Balance</p><p className="font-bold">{formatCurrency(ledger.summary.ledgerBalance)}</p></div>
+              <div className="p-3 bg-slate-50 rounded-lg">
+                <p className="text-xs text-slate-500">Ledger ({ledgerCurrency})</p>
+                <p className="font-bold">{formatCurrency(ledgerCurrency === 'SAR' ? (ledger.summary as { ledgerBalanceSar?: number }).ledgerBalanceSar || 0 : (ledger.summary as { ledgerBalancePkr?: number }).ledgerBalancePkr ?? ledger.summary.ledgerBalance)}</p>
+              </div>
             </div>
+            <div className="mb-4 max-w-xs">
+              <Select
+                label="Currency view"
+                value={ledgerCurrency}
+                onChange={(e) => {
+                  const cur = e.target.value as 'PKR' | 'SAR';
+                  setLedgerCurrency(cur);
+                  if (ledger.customer) viewLedger(ledger.customer as Customer, cur);
+                }}
+                options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]}
+              />
+            </div>
+            {ledgerTx.length > 0 && (
+              <div className="mb-6">
+                <h4 className="font-semibold mb-2">Transaction History</h4>
+                <LedgerTransactionTable rows={ledgerTx} currency={ledgerCurrency} />
+              </div>
+            )}
             {ledger.invoices.length > 0 && (
               <div>
                 <h4 className="font-semibold mb-2">Invoices</h4>

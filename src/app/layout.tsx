@@ -10,8 +10,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Moazin Travel | Tours, Umrah & Travel Packages',
-  description: 'Explore curated travel and Umrah packages. Professional agency management for our team.',
+  title: 'Huffaz Holiday | Tours, Umrah & Travel Packages',
+  description: 'Explore curated travel and holiday packages with Huffaz Holiday. Professional agency management for our team.',
 };
 
 export const viewport: Viewport = {

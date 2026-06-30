@@ -1,4 +1,5 @@
 import { User, Invoice, Voucher } from '@/types';
+import { BRAND_NAME } from '@/lib/brand';
 
 export function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
@@ -30,9 +31,9 @@ function getVoucherRecipientPhone(voucher: Voucher): string | null {
 }
 
 function staffSignature(user: User | null): string {
-  if (!user) return 'Moazin Travel Agency';
+  if (!user) return BRAND_NAME;
   const name = `${user.firstName} ${user.lastName}`.trim();
-  const lines = ['Moazin Travel Agency'];
+  const lines = [BRAND_NAME];
   if (name) lines.unshift(`— ${name}`);
   if (user.phone?.trim()) lines.push(user.phone.trim());
   return lines.join('\n');
@@ -80,8 +81,8 @@ export function buildVoucherWhatsAppMessage(voucher: Voucher, user: User | null)
     'Your hotel voucher details:',
     '',
     `Voucher #: ${voucher.voucherNumber}`,
-    `Hotel: ${voucher.hotelName}`,
-    `Check-in: ${formatDateShort(voucher.checkInDate)}`,
+    `Hotel: ${voucher.hotelName || 'See voucher'}`,
+    voucher.checkInDate ? `Check-in: ${formatDateShort(voucher.checkInDate)}` : '',
     voucher.checkOutDate ? `Check-out: ${formatDateShort(voucher.checkOutDate)}` : '',
     voucher.roomDetails ? `Room: ${voucher.roomDetails}` : '',
     '',

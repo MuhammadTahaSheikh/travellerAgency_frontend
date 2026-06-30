@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux';
 import { Plus } from 'lucide-react';
 import api from '@/lib/api';
 import { buildQueryString } from '@/lib/query';
+import { uploadAttachment } from '@/lib/upload';
 import { RootState } from '@/store';
 import { Account, Vendor, ApiResponse } from '@/types';
 import { canCreateResource, canEditResource, canDeleteResource } from '@/lib/permissions';
@@ -47,6 +48,7 @@ export default function ExpensesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -96,6 +98,7 @@ export default function ExpensesPage() {
 
   const resetForm = () => {
     setForm(emptyForm);
+    setAttachmentFile(null);
     setEditingId(null);
     setShowForm(false);
   };
@@ -126,7 +129,9 @@ export default function ExpensesPage() {
           expenseDate: form.expenseDate || undefined,
         });
       } else {
-        await api.post('/expenses', { ...form, amount: parseFloat(form.amount) });
+        let receiptPath: string | undefined;
+        if (attachmentFile) receiptPath = await uploadAttachment(attachmentFile);
+        await api.post('/expenses', { ...form, amount: parseFloat(form.amount), receiptPath });
       }
       resetForm();
       loadData();
@@ -201,6 +206,12 @@ export default function ExpensesPage() {
               <div className="md:col-span-2">
                 <Textarea label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required rows={2} />
               </div>
+              {!editingId && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Receipt / Attachment (optional)</label>
+                  <input type="file" accept="image/*,.pdf" onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-teal-50 file:text-teal-700" />
+                </div>
+              )}
               <div className="md:col-span-2 lg:col-span-3 flex gap-2">
                 <Button type="submit" loading={saving}>{editingId ? 'Update Expense' : 'Save Expense'}</Button>
                 <Button type="button" variant="secondary" onClick={resetForm}>Cancel</Button>

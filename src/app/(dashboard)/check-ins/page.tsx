@@ -15,26 +15,38 @@ export default function CheckInsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ bookingId: '', hotelName: '', checkInDate: '', guestName: '', roomDetails: '' });
+  const [filterType, setFilterType] = useState('');
+  const [form, setForm] = useState({
+    bookingId: '',
+    scheduleType: 'HOTEL',
+    hotelName: '',
+    checkInDate: '',
+    transportDate: '',
+    pickupLocation: '',
+    dropoffLocation: '',
+    guestName: '',
+    roomDetails: '',
+  });
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState('');
 
   const loadData = () => {
     setLoading(true);
     setLoadError('');
+    const query = filterType ? `?upcoming=true&scheduleType=${filterType}` : '?upcoming=true';
     Promise.allSettled([
-      api.get<ApiResponse<CheckInRecord[]>>('/check-ins?upcoming=true'),
+      api.get<ApiResponse<CheckInRecord[]>>(`/check-ins${query}`),
       api.get<ApiResponse<Booking[]>>('/bookings'),
     ])
       .then(([cRes, bRes]) => {
         if (cRes.status === 'fulfilled') setCheckIns(cRes.value.data || []);
-        else setLoadError(cRes.reason?.message || 'Failed to load check-ins');
+        else setLoadError(cRes.reason?.message || 'Failed to load schedules');
         if (bRes.status === 'fulfilled') setBookings(bRes.value.data || []);
       })
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [filterType]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,10 +65,16 @@ export default function CheckInsPage() {
   return (
     <div>
       <PageHeader
-        title="Check-in Records"
-        subtitle="Track hotel check-ins — reminders sent 1 day prior"
-        action={<Button onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-2" />Add Check-in</Button>}
+        title="Travel Schedules"
+        subtitle="Hotel check-ins and transport — shows vendor posted status"
+        action={<Button onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-2" />Add Schedule</Button>}
       />
+
+      <div className="mb-4 flex gap-2">
+        <Button variant={filterType === '' ? 'primary' : 'secondary'} onClick={() => setFilterType('')}>All</Button>
+        <Button variant={filterType === 'HOTEL' ? 'primary' : 'secondary'} onClick={() => setFilterType('HOTEL')}>Hotel</Button>
+        <Button variant={filterType === 'TRANSPORT' ? 'primary' : 'secondary'} onClick={() => setFilterType('TRANSPORT')}>Transport</Button>
+      </div>
 
       {loadError && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{loadError}</div>
@@ -66,13 +84,24 @@ export default function CheckInsPage() {
         <Card className="mb-6">
           <CardBody>
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Select label="Booking" value={form.bookingId} onChange={(e) => setForm({ ...form, bookingId: e.target.value })} options={[{ value: '', label: 'Select booking' }, ...bookings.map((b) => ({ value: b.id, label: `${b.bookingNumber} - ${b.customer?.firstName} ${b.customer?.lastName}` }))]} required />
-              <Input label="Hotel Name" value={form.hotelName} onChange={(e) => setForm({ ...form, hotelName: e.target.value })} required />
-              <Input label="Check-in Date" type="date" value={form.checkInDate} onChange={(e) => setForm({ ...form, checkInDate: e.target.value })} required />
+              <Select label="Type" value={form.scheduleType} onChange={(e) => setForm({ ...form, scheduleType: e.target.value })} options={[{ value: 'HOTEL', label: 'Hotel' }, { value: 'TRANSPORT', label: 'Transport' }]} />
+              <Select label="Booking (optional)" value={form.bookingId} onChange={(e) => setForm({ ...form, bookingId: e.target.value })} options={[{ value: '', label: 'None' }, ...bookings.map((b) => ({ value: b.id, label: `${b.bookingNumber} - ${b.customer?.firstName} ${b.customer?.lastName}` }))]} />
+              {form.scheduleType === 'HOTEL' ? (
+                <>
+                  <Input label="Hotel Name" value={form.hotelName} onChange={(e) => setForm({ ...form, hotelName: e.target.value })} required />
+                  <Input label="Check-in Date" type="date" value={form.checkInDate} onChange={(e) => setForm({ ...form, checkInDate: e.target.value })} required />
+                  <Input label="Room Details" value={form.roomDetails} onChange={(e) => setForm({ ...form, roomDetails: e.target.value })} />
+                </>
+              ) : (
+                <>
+                  <Input label="Transport Date" type="date" value={form.transportDate} onChange={(e) => setForm({ ...form, transportDate: e.target.value })} required />
+                  <Input label="Pickup" value={form.pickupLocation} onChange={(e) => setForm({ ...form, pickupLocation: e.target.value })} />
+                  <Input label="Drop-off" value={form.dropoffLocation} onChange={(e) => setForm({ ...form, dropoffLocation: e.target.value })} />
+                </>
+              )}
               <Input label="Guest Name" value={form.guestName} onChange={(e) => setForm({ ...form, guestName: e.target.value })} />
-              <Input label="Room Details" value={form.roomDetails} onChange={(e) => setForm({ ...form, roomDetails: e.target.value })} />
               <div className="md:col-span-2 lg:col-span-3 flex gap-2">
-                <Button type="submit" loading={saving}>Save Check-in</Button>
+                <Button type="submit" loading={saving}>Save</Button>
                 <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
               </div>
             </form>
@@ -80,34 +109,38 @@ export default function CheckInsPage() {
         </Card>
       )}
 
-      {loading ? <LoadingSpinner label="Loading check-ins..." /> : (
+      {loading ? <LoadingSpinner label="Loading schedules..." /> : (
         <Card>
           <CardBody className="p-0 sm:p-0">
             {checkIns.length === 0 ? (
-              <EmptyState message="No upcoming check-ins. Check-ins are auto-created from hotel bookings when confirmed." />
+              <EmptyState message="No upcoming schedules. Schedules are auto-created when invoice payments are received." />
             ) : (
               <TableWrapper>
                 <Table>
                   <TableHead>
                     <tr>
+                      <TableHeaderCell>Type</TableHeaderCell>
                       <TableHeaderCell>Guest</TableHeaderCell>
-                      <TableHeaderCell>Hotel</TableHeaderCell>
-                      <TableHeaderCell>Check-in Date</TableHeaderCell>
-                      <TableHeaderCell>Booking</TableHeaderCell>
-                      <TableHeaderCell>Reminder</TableHeaderCell>
+                      <TableHeaderCell>Details</TableHeaderCell>
+                      <TableHeaderCell>Date</TableHeaderCell>
+                      <TableHeaderCell>Vendor Posted</TableHeaderCell>
                     </tr>
                   </TableHead>
                   <TableBody>
                     {checkIns.map((c) => (
                       <TableRow key={c.id}>
-                        <TableCell className="font-medium">{c.guestName || c.booking?.customer?.firstName}</TableCell>
-                        <TableCell>{c.hotelName}</TableCell>
-                        <TableCell>{formatDate(c.checkInDate)}</TableCell>
-                        <TableCell>{c.booking?.bookingNumber || '—'}</TableCell>
+                        <TableCell><Badge status={c.scheduleType || 'HOTEL'}>{c.scheduleType || 'HOTEL'}</Badge></TableCell>
+                        <TableCell>{c.guestName || c.booking?.customer?.firstName || '—'}</TableCell>
                         <TableCell>
-                          <Badge status={c.reminderSent ? 'COMPLETED' : 'PENDING'}>
-                            {c.reminderSent ? 'Sent' : 'Scheduled'}
-                          </Badge>
+                          {c.scheduleType === 'TRANSPORT'
+                            ? `${c.pickupLocation || ''} → ${c.dropoffLocation || ''}`
+                            : c.hotelName || '—'}
+                        </TableCell>
+                        <TableCell>{formatDate((c.scheduleType === 'TRANSPORT' ? c.transportDate : c.checkInDate) || '')}</TableCell>
+                        <TableCell>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded ${c.vendorPosted ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
+                            {c.vendorPosted ? 'Posted' : 'Not Posted'}
+                          </span>
                         </TableCell>
                       </TableRow>
                     ))}
