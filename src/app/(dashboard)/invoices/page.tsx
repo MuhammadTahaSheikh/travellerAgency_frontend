@@ -128,14 +128,18 @@ export default function InvoicesPage() {
           postingType: i.postingType,
         };
       });
-    const subtotal = items.reduce((s, i) => s + i.amount, 0);
-    const payload = {
+    const subtotal = editingId
+      ? parseFloat(form.subtotal) || 0
+      : items.reduce((s, i) => s + i.amount, 0);
+    const payload: Record<string, unknown> = {
       ...form,
       subtotal,
       tax: parseFloat(form.tax),
       discount: parseFloat(form.discount),
-      items,
     };
+    if (!editingId) {
+      payload.items = items;
+    }
     try {
       if (editingId) {
         await api.put(`/invoices/${editingId}`, payload);
