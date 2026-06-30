@@ -7,7 +7,9 @@ import { ArrowRight, ArrowLeft } from 'lucide-react';
 import { Logo } from '@/components/brand/Logo';
 import { BRAND_NAME, BRAND_TAGLINE } from '@/lib/brand';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { login } from '@/store/slices/authSlice';
+import { login, logout, clearLoginLoading } from '@/store/slices/authSlice';
+import api from '@/lib/api';
+import { ApiResponse, User } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -15,16 +17,42 @@ import { Card, CardBody } from '@/components/ui/Card';
 export default function LoginPage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { loading, error, isAuthenticated, initialized } = useAppSelector((s) => s.auth);
+  const { loading, error, initialized } = useAppSelector((s) => s.auth);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState('');
+  const [checkingSession, setCheckingSession] = useState(true);
 
+  // Validate stored token instead of trusting Redux alone (fixes stale-session redirect loops)
   useEffect(() => {
-    if (initialized && isAuthenticated) {
-      router.replace('/dashboard');
+    if (!initialized) return;
+
+    let cancelled = false;
+    const token = localStorage.getItem('token');
+
+    if (!token) {
+      dispatch(logout());
+      dispatch(clearLoginLoading());
+      setCheckingSession(false);
+      return;
     }
-  }, [initialized, isAuthenticated, router]);
+
+    api
+      .get<ApiResponse<User>>('/auth/profile')
+      .then(() => {
+        if (!cancelled) router.replace('/dashboard');
+      })
+      .catch(() => {
+        if (!cancelled) dispatch(logout());
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingSession(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialized, router, dispatch]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,18 +62,15 @@ export default function LoginPage() {
       setLocalError('Email and password are required.');
       return;
     }
-    // Clear stale session so login never sends an old token
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-    }
+    dispatch(logout());
     const result = await dispatch(login({ email: normalizedEmail, password }));
     if (login.fulfilled.match(result)) {
-      router.push('/dashboard');
+      router.replace('/dashboard');
     }
   };
 
   const displayError = localError || error;
+  const showForm = initialized && !checkingSession;
 
   return (
     <div className="min-h-screen flex">
@@ -113,6 +138,12 @@ export default function LoginPage() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
+                {!showForm ? (
+                  <div className="py-8 text-center text-sm text-slate-500" aria-busy="true">
+                    Checking session…
+                  </div>
+                ) : (
+                  <>
                 <Input
                   label="Email address"
                   type="email"
@@ -136,10 +167,12 @@ export default function LoginPage() {
                   </div>
                 )}
 
-                <Button type="submit" loading={loading} size="lg" className="w-full">
+                <Button type="submit" loading={loading} size="lg" className="w-full" disabled={!showForm}>
                   Sign In
                   {!loading && <ArrowRight className="w-4 h-4" />}
                 </Button>
+                  </>
+                )}
               </form>
 
               {/* <div className="mt-8 p-4 bg-slate-50 rounded-xl border border-slate-100">

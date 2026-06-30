@@ -28,7 +28,7 @@ export const login = createAsyncThunk(
       const response = await api.post<ApiResponse<{ token: string; user: User }>>(
         '/auth/login',
         { email, password },
-        { skipAuth: true }
+        { skipAuth: true, timeoutMs: 20000 }
       );
       if (typeof window !== 'undefined') {
         localStorage.setItem('token', response.data!.token);
@@ -58,10 +58,15 @@ const authSlice = createSlice({
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;
+      state.loading = false;
+      state.error = null;
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
       }
+    },
+    clearLoginLoading(state) {
+      state.loading = false;
     },
     initAuth(state) {
       const session = readStoredAuth();
@@ -98,9 +103,19 @@ const authSlice = createSlice({
         if (typeof window !== 'undefined') {
           localStorage.setItem('user', JSON.stringify(action.payload));
         }
+      })
+      .addCase(loadUser.rejected, (state) => {
+        state.user = null;
+        state.token = null;
+        state.isAuthenticated = false;
+        state.loading = false;
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
       });
   },
 });
 
-export const { logout, initAuth } = authSlice.actions;
+export const { logout, initAuth, clearLoginLoading } = authSlice.actions;
 export default authSlice.reducer;

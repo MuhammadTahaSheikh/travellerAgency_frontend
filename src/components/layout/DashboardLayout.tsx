@@ -32,6 +32,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized) return;
 
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      dispatch(logout());
+      router.replace('/login');
+      return;
+    }
+
     if (!isAuthenticated) {
       router.replace('/login');
       return;
