@@ -25,7 +25,11 @@ export const login = createAsyncThunk(
   'auth/login',
   async ({ email, password }: { email: string; password: string }, { rejectWithValue }) => {
     try {
-      const response = await api.post<ApiResponse<{ token: string; user: User }>>('/auth/login', { email, password });
+      const response = await api.post<ApiResponse<{ token: string; user: User }>>(
+        '/auth/login',
+        { email, password },
+        { skipAuth: true }
+      );
       if (typeof window !== 'undefined') {
         localStorage.setItem('token', response.data!.token);
         localStorage.setItem('user', JSON.stringify(response.data!.user));

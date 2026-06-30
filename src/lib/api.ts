@@ -4,6 +4,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
 
 interface RequestOptions extends RequestInit {
   token?: string;
+  skipAuth?: boolean;
+  timeoutMs?: number;
 }
 
 class ApiClient {
@@ -13,7 +15,7 @@ class ApiClient {
   }
 
   private async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-    const token = options.token || this.getToken();
+    const token = options.token ?? (options.skipAuth ? null : this.getToken());
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string>),
@@ -22,15 +24,24 @@ class ApiClient {
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     let response: Response;
+    const timeoutMs = options.timeoutMs ?? 30000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
       response = await fetch(`${API_URL}${endpoint}`, {
         ...options,
         headers,
+        signal: controller.signal,
       });
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new Error('Request timed out. Check your connection and try again.');
+      }
       throw new Error(
         `Cannot connect to API at ${API_URL}. Make sure the backend is running (cd backend && npm run dev).`
       );
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     let data: { error?: string; message?: string; success?: boolean };
@@ -75,8 +86,8 @@ class ApiClient {
     return this.request<T>(endpoint);
   }
 
-  post<T>(endpoint: string, body: unknown) {
-    return this.request<T>(endpoint, { method: 'POST', body: JSON.stringify(body) });
+  post<T>(endpoint: string, body: unknown, options: Omit<RequestOptions, 'body' | 'method'> = {}) {
+    return this.request<T>(endpoint, { ...options, method: 'POST', body: JSON.stringify(body) });
   }
 
   put<T>(endpoint: string, body: unknown) {

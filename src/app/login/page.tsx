@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
@@ -15,17 +15,37 @@ import { Card, CardBody } from '@/components/ui/Card';
 export default function LoginPage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { loading, error } = useAppSelector((s) => s.auth);
+  const { loading, error, isAuthenticated, initialized } = useAppSelector((s) => s.auth);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [localError, setLocalError] = useState('');
+
+  useEffect(() => {
+    if (initialized && isAuthenticated) {
+      router.replace('/dashboard');
+    }
+  }, [initialized, isAuthenticated, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const result = await dispatch(login({ email, password }));
+    setLocalError('');
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password) {
+      setLocalError('Email and password are required.');
+      return;
+    }
+    // Clear stale session so login never sends an old token
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    }
+    const result = await dispatch(login({ email: normalizedEmail, password }));
     if (login.fulfilled.match(result)) {
       router.push('/dashboard');
     }
   };
+
+  const displayError = localError || error;
 
   return (
     <div className="min-h-screen flex">
@@ -110,9 +130,9 @@ export default function LoginPage() {
                   required
                 />
 
-                {error && (
+                {displayError && (
                   <div className="text-sm text-red-700 bg-red-50 border border-red-100 p-3.5 rounded-xl">
-                    {error}
+                    {displayError}
                   </div>
                 )}
 
