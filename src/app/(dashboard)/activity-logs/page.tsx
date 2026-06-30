@@ -6,7 +6,7 @@ import { buildQueryString } from '@/lib/query';
 import { ApiResponse } from '@/types';
 import { Card, CardBody } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
-import { PageHeader, LoadingSpinner, Badge, formatDate, EmptyState } from '@/components/ui/Common';
+import { PageHeader, LoadingSpinner, Badge, formatDateTime, EmptyState } from '@/components/ui/Common';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
 interface ActivityLog {
@@ -78,7 +78,7 @@ export default function ActivityLogsPage() {
                       <TableHeaderCell>Action</TableHeaderCell>
                       <TableHeaderCell className="hidden sm:table-cell">Entity</TableHeaderCell>
                       <TableHeaderCell className="hidden md:table-cell">Details</TableHeaderCell>
-                      <TableHeaderCell>Date</TableHeaderCell>
+                      <TableHeaderCell>Date & Time</TableHeaderCell>
                     </tr>
                   </TableHead>
                   <TableBody>
@@ -88,7 +88,7 @@ export default function ActivityLogsPage() {
                         <TableCell><Badge>{log.action}</Badge></TableCell>
                         <TableCell className="hidden sm:table-cell">{log.entity}</TableCell>
                         <TableCell className="hidden md:table-cell text-slate-500 max-w-xs truncate">{log.details || '—'}</TableCell>
-                        <TableCell className="text-slate-500">{formatDate(log.createdAt)}</TableCell>
+                        <TableCell className="text-slate-500 whitespace-nowrap">{formatDateTime(log.createdAt)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
