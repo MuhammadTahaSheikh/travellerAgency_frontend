@@ -168,7 +168,7 @@ export default function BookingsPage() {
         const res = await api.post<ApiResponse<Booking> & { invoice?: Invoice | null }>('/bookings', payload);
         invoice = res.invoice;
       }
-      if (invoice) shareInvoiceViaWhatsApp(invoice, user);
+      if (invoice) void shareInvoiceViaWhatsApp(invoice, user);
       resetForm();
       loadData();
     } catch (err) {

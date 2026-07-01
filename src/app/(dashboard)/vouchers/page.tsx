@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { Download, Share2, MessageCircle } from 'lucide-react';
+import { Download, Share2, MessageCircle, Link2 } from 'lucide-react';
 import api from '@/lib/api';
+import { copyText } from '@/lib/documentLinks';
 import { RootState } from '@/store';
 import { Voucher, ApiResponse } from '@/types';
 import { shareVoucherViaWhatsApp } from '@/lib/whatsapp';
@@ -67,9 +68,26 @@ export default function VouchersPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  const openVoucher = async (id: string) => {
+  const handleCopyLink = async (voucher: Voucher) => {
     try {
-      await api.fetchAndOpenHtml(`/vouchers/${id}/html`);
+      const res = await api.get<{ data?: { url: string } }>(`/vouchers/${voucher.id}/share-link`);
+      if (!res.data?.url) throw new Error('Could not create share link');
+      const copied = await copyText(res.data.url);
+      alert(copied ? `Permanent link copied:\n${res.data.url}` : res.data.url);
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
+  const openVoucher = async (voucher: Voucher) => {
+    try {
+      const safeName = voucher.voucherNumber.replace(/[^\w.-]+/g, '-');
+      const format = voucher.voucherFormat ? `-${voucher.voucherFormat.toLowerCase()}` : '';
+      await api.downloadPdfFromEndpoint(
+        `/vouchers/${voucher.id}/html`,
+        `voucher-${safeName}${format}.pdf`,
+        'portrait'
+      );
     } catch (err) {
       alert((err as Error).message);
     }
@@ -78,7 +96,7 @@ export default function VouchersPage() {
   const handleShare = async (voucher: Voucher) => {
     try {
       await api.post(`/vouchers/${voucher.id}/share`, {});
-      shareVoucherViaWhatsApp(voucher, user);
+      void shareVoucherViaWhatsApp(voucher, user);
       loadData();
     } catch (err) {
       alert((err as Error).message);
@@ -144,7 +162,7 @@ export default function VouchersPage() {
                                   <Button
                                     key={format}
                                     variant="secondary"
-                                    onClick={() => openVoucher(v.id)}
+                                    onClick={() => openVoucher(v)}
                                     title={`Download ${FORMAT_LABELS[format]} voucher`}
                                   >
                                     <Download className="w-4 h-4 mr-1" />
@@ -163,7 +181,10 @@ export default function VouchersPage() {
                           <TableCell><Badge status={groupStatus(group)}>{groupStatus(group)}</Badge></TableCell>
                           <TableCell align="right">
                             <div className="flex justify-end gap-2">
-                              <Button variant="secondary" onClick={() => shareVoucherViaWhatsApp(primary, user)} title="Send via WhatsApp">
+                              <Button variant="secondary" onClick={() => handleCopyLink(primary)} title="Copy permanent link">
+                                <Link2 className="w-4 h-4" />
+                              </Button>
+                              <Button variant="secondary" onClick={() => void shareVoucherViaWhatsApp(primary, user)} title="Send via WhatsApp">
                                 <MessageCircle className="w-4 h-4" />
                               </Button>
                               {group.vouchers.some((v) => v.status !== 'SHARED') && (

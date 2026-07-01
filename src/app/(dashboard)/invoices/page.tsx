@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { Plus, CheckCircle, ExternalLink, MessageCircle, Trash2 } from 'lucide-react';
+import { Plus, CheckCircle, Download, MessageCircle, Trash2, Link2 } from 'lucide-react';
 import api from '@/lib/api';
+import { copyText } from '@/lib/documentLinks';
 import { searchCustomers, searchVendors } from '@/lib/searchableOptions';
 import { buildQueryString } from '@/lib/query';
 import { RootState } from '@/store';
@@ -146,7 +147,7 @@ export default function InvoicesPage() {
         await api.put(`/invoices/${editingId}`, payload);
       } else {
         const res = await api.post<ApiResponse<Invoice>>('/invoices', payload);
-        if (res.data) shareInvoiceViaWhatsApp(res.data, user);
+        if (res.data) void shareInvoiceViaWhatsApp(res.data, user);
       }
       resetForm();
       loadData();
@@ -161,8 +162,19 @@ export default function InvoicesPage() {
     if (!confirm(`Confirm invoice ${inv.invoiceNumber}? This will debit the customer ledger.`)) return;
     try {
       const res = await api.post<ApiResponse<Invoice>>(`/invoices/${inv.id}/confirm`, {});
-      if (res.data) shareInvoiceViaWhatsApp(res.data, user);
+      if (res.data) void shareInvoiceViaWhatsApp(res.data, user);
       loadData();
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
+  const handleCopyLink = async (inv: Invoice) => {
+    try {
+      const res = await api.get<{ data?: { url: string } }>(`/invoices/${inv.id}/share-link`);
+      if (!res.data?.url) throw new Error('Could not create share link');
+      const copied = await copyText(res.data.url);
+      alert(copied ? `Permanent link copied:\n${res.data.url}` : res.data.url);
     } catch (err) {
       alert((err as Error).message);
     }
@@ -170,7 +182,8 @@ export default function InvoicesPage() {
 
   const handleView = async (inv: Invoice) => {
     try {
-      await api.fetchAndOpenHtml(`/invoices/${inv.id}/html`);
+      const safeName = inv.invoiceNumber.replace(/[^\w.-]+/g, '-');
+      await api.downloadPdfFromEndpoint(`/invoices/${inv.id}/html`, `invoice-${safeName}.pdf`, 'portrait');
     } catch (err) {
       alert((err as Error).message);
     }
@@ -303,8 +316,9 @@ export default function InvoicesPage() {
                         <TableCell className="hidden md:table-cell text-slate-500">{formatDate(inv.dueDate)}</TableCell>
                         <TableCell align="right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="secondary" onClick={() => handleView(inv)} title="View invoice"><ExternalLink className="w-4 h-4" /></Button>
-                            <Button variant="secondary" onClick={() => shareInvoiceViaWhatsApp(inv, user)} title="Send via WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
+                            <Button variant="secondary" onClick={() => handleView(inv)} title="Download PDF"><Download className="w-4 h-4" /></Button>
+                            <Button variant="secondary" onClick={() => handleCopyLink(inv)} title="Copy permanent link"><Link2 className="w-4 h-4" /></Button>
+                            <Button variant="secondary" onClick={() => void shareInvoiceViaWhatsApp(inv, user)} title="Send via WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
                             {!inv.confirmedAt && inv.status !== 'CANCELLED' && canEditResource(user, 'invoices') && (
                               <Button variant="secondary" onClick={() => handleConfirm(inv)} title="Confirm & debit ledger"><CheckCircle className="w-4 h-4" /></Button>
                             )}

@@ -16,6 +16,18 @@ function waitForRender(iframe: HTMLIFrameElement) {
   });
 }
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = 'none';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export async function downloadHtmlAsPdf(html: string, options: PdfDownloadOptions): Promise<void> {
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
@@ -52,10 +64,12 @@ export async function downloadHtmlAsPdf(html: string, options: PdfDownloadOption
       },
     };
 
-    await html2pdf()
+    const pdfBlob = (await html2pdf()
       .set(pdfOptions as never)
       .from(element)
-      .save();
+      .outputPdf('blob')) as Blob;
+
+    downloadBlob(pdfBlob, ensurePdfFilename(options.filename));
   } finally {
     document.body.removeChild(iframe);
   }

@@ -109,6 +109,7 @@ export interface Invoice {
   dueDate: string;
   confirmedAt?: string;
   approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  shareToken?: string;
   customer?: Customer;
   booking?: Booking;
   items?: InvoiceItem[];
@@ -140,6 +141,7 @@ export interface Voucher {
   paymentStatus?: string;
   remainingBalance?: number;
   status: 'DRAFT' | 'ISSUED' | 'SHARED';
+  shareToken?: string;
   booking?: Booking;
   invoice?: Invoice;
   payment?: Payment;

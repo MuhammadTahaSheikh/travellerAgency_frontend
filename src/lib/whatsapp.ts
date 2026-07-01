@@ -1,5 +1,7 @@
 import { User, Invoice, Voucher } from '@/types';
 import { BRAND_NAME } from '@/lib/brand';
+import { getPublicInvoiceUrl, getPublicVoucherUrl } from '@/lib/documentLinks';
+import api from '@/lib/api';
 
 export function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
@@ -66,6 +68,7 @@ export function buildInvoiceWhatsAppMessage(invoice: Invoice, user: User | null)
     invoice.paidAmount ? `Paid: ${formatRs(invoice.paidAmount)}` : '',
     `Due Date: ${formatDateShort(invoice.dueDate)}`,
     invoice.booking?.bookingNumber ? `Booking: ${invoice.booking.bookingNumber}` : '',
+    invoice.shareToken ? `View invoice: ${getPublicInvoiceUrl(invoice.shareToken)}` : '',
     '',
     'Thank you for choosing us.',
     staffSignature(user),
@@ -85,6 +88,7 @@ export function buildVoucherWhatsAppMessage(voucher: Voucher, user: User | null)
     voucher.checkInDate ? `Check-in: ${formatDateShort(voucher.checkInDate)}` : '',
     voucher.checkOutDate ? `Check-out: ${formatDateShort(voucher.checkOutDate)}` : '',
     voucher.roomDetails ? `Room: ${voucher.roomDetails}` : '',
+    voucher.shareToken ? `View voucher: ${getPublicVoucherUrl(voucher.shareToken)}` : '',
     '',
     'Please present this voucher at check-in.',
     staffSignature(user),
@@ -93,20 +97,44 @@ export function buildVoucherWhatsAppMessage(voucher: Voucher, user: User | null)
     .join('\n');
 }
 
-export function shareInvoiceViaWhatsApp(invoice: Invoice, user: User | null): boolean {
+async function resolveInvoiceShareToken(invoice: Invoice): Promise<Invoice> {
+  if (invoice.shareToken) return invoice;
+  try {
+    const res = await api.get<{ data?: { shareToken: string } }>(`/invoices/${invoice.id}/share-link`);
+    if (res.data?.shareToken) return { ...invoice, shareToken: res.data.shareToken };
+  } catch {
+    // Share text without link if token cannot be created.
+  }
+  return invoice;
+}
+
+async function resolveVoucherShareToken(voucher: Voucher): Promise<Voucher> {
+  if (voucher.shareToken) return voucher;
+  try {
+    const res = await api.get<{ data?: { shareToken: string } }>(`/vouchers/${voucher.id}/share-link`);
+    if (res.data?.shareToken) return { ...voucher, shareToken: res.data.shareToken };
+  } catch {
+    // Share text without link if token cannot be created.
+  }
+  return voucher;
+}
+
+export async function shareInvoiceViaWhatsApp(invoice: Invoice, user: User | null): Promise<boolean> {
   const recipientPhone = getCustomerPhone(invoice);
   if (!recipientPhone) {
     alert('This customer has no phone number. Add a phone number on the customer record to send via WhatsApp.');
     return false;
   }
-  return openWhatsAppShare(recipientPhone, buildInvoiceWhatsAppMessage(invoice, user));
+  const withLink = await resolveInvoiceShareToken(invoice);
+  return openWhatsAppShare(recipientPhone, buildInvoiceWhatsAppMessage(withLink, user));
 }
 
-export function shareVoucherViaWhatsApp(voucher: Voucher, user: User | null): boolean {
+export async function shareVoucherViaWhatsApp(voucher: Voucher, user: User | null): Promise<boolean> {
   const recipientPhone = getVoucherRecipientPhone(voucher);
   if (!recipientPhone) {
     alert('This customer has no phone number. Add a phone number on the customer record to send via WhatsApp.');
     return false;
   }
-  return openWhatsAppShare(recipientPhone, buildVoucherWhatsAppMessage(voucher, user));
+  const withLink = await resolveVoucherShareToken(voucher);
+  return openWhatsAppShare(recipientPhone, buildVoucherWhatsAppMessage(withLink, user));
 }
