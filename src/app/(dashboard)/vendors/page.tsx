@@ -13,6 +13,7 @@ import { uploadAttachment } from '@/lib/upload';
 import { LedgerTransactionTable, LedgerTransactionRow } from '@/components/ledger/LedgerTransactionTable';
 import { InternalTransferButton, InternalTransferModal } from '@/components/ledger/InternalTransferModal';
 import { ExchangeRateInput } from '@/components/currency/ExchangeRateInput';
+import { Button } from '@/components/ui/Button';
 import { Input, Select, SearchableSelect } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
 import { PageHeader, LoadingSpinner, formatCurrency, EmptyState } from '@/components/ui/Common';

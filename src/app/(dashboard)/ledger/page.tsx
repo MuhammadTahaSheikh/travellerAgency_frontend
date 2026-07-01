@@ -17,6 +17,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
 import { PageHeader, LoadingSpinner, formatCurrency, formatDate, TabGroup, EmptyState } from '@/components/ui/Common';
 import { LedgerTransactionTable, LedgerTransactionRow } from '@/components/ledger/LedgerTransactionTable';
+import { InternalTransferButton, InternalTransferModal } from '@/components/ledger/InternalTransferModal';
 import { ExchangeRateInput } from '@/components/currency/ExchangeRateInput';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
