@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
+import { searchCustomers } from '@/lib/searchableOptions';
 import api from '@/lib/api';
 import { buildQueryString } from '@/lib/query';
 import { ApiResponse, Customer } from '@/types';
@@ -185,10 +186,8 @@ export default function ReportsPage() {
             label="Customer"
             value={statementCustomerId}
             onChange={setStatementCustomerId}
-            options={[{ value: '', label: 'Select customer' }, ...customers.map((c) => ({
-              value: c.id,
-              label: c.customerType === 'B2B' ? `${c.companyName} (${c.tradePartnerId || 'B2B'})` : `${c.firstName} ${c.lastName}`,
-            }))]}
+            onSearch={searchCustomers}
+            options={[{ value: '', label: 'Select customer' }]}
           />
           <Select
             label="Currency"

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Download, Plus } from 'lucide-react';
 import api from '@/lib/api';
 import { buildQueryString } from '@/lib/query';
+import { searchCustomers, searchVendors, searchBookings } from '@/lib/searchableOptions';
 import { CheckInRecord, Booking, Customer, Vendor, ApiResponse } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input, SearchableSelect } from '@/components/ui/Input';
@@ -118,7 +119,6 @@ export default function CheckInsPage() {
     }
   };
 
-  const b2bCustomers = customers.filter((c) => c.customerType === 'B2B');
 
   return (
     <div>
@@ -159,22 +159,15 @@ export default function CheckInsPage() {
           label="B2B Customer"
           value={customerId}
           onChange={setCustomerId}
-          options={[
-            { value: '', label: 'All customers' },
-            ...b2bCustomers.map((c) => ({
-              value: c.id,
-              label: c.companyName ? `${c.companyName} (${c.tradePartnerId || 'B2B'})` : `${c.firstName} ${c.lastName}`,
-            })),
-          ]}
+          onSearch={searchCustomers}
+          options={[{ value: '', label: 'All customers' }]}
         />
         <SearchableSelect
           label="Vendor"
           value={vendorId}
           onChange={setVendorId}
-          options={[
-            { value: '', label: 'All vendors' },
-            ...vendors.map((v) => ({ value: v.id, label: `${v.name} (${v.category})` })),
-          ]}
+          onSearch={searchVendors}
+          options={[{ value: '', label: 'All vendors' }]}
         />
       </div>
 
@@ -187,7 +180,7 @@ export default function CheckInsPage() {
           <CardBody>
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <SearchableSelect label="Type" value={form.scheduleType} onChange={(v) => setForm({ ...form, scheduleType: v })} options={[{ value: 'HOTEL', label: 'Hotel' }, { value: 'TRANSPORT', label: 'Transport' }]} searchThreshold={99} />
-              <SearchableSelect label="Booking (optional)" value={form.bookingId} onChange={(v) => setForm({ ...form, bookingId: v })} options={[{ value: '', label: 'None' }, ...bookings.map((b) => ({ value: b.id, label: `${b.bookingNumber} - ${b.customer?.firstName} ${b.customer?.lastName}` }))]} />
+              <SearchableSelect label="Booking (optional)" value={form.bookingId} onChange={(v) => setForm({ ...form, bookingId: v })} onSearch={searchBookings} options={[{ value: '', label: 'None' }]} />
               {form.scheduleType === 'HOTEL' ? (
                 <>
                   <Input label="Hotel Name" value={form.hotelName} onChange={(e) => setForm({ ...form, hotelName: e.target.value })} required />

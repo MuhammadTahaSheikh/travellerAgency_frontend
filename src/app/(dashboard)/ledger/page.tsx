@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { Plus, Trash2, Download, ArrowRightLeft } from 'lucide-react';
 import api from '@/lib/api';
+import { searchLedgerAccounts } from '@/lib/searchableOptions';
 import { buildQueryString } from '@/lib/query';
 import { uploadAttachment } from '@/lib/upload';
 import { RootState } from '@/store';
@@ -281,24 +282,6 @@ export default function LedgerPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  const accountFilterOptions = useMemo(() => {
-    if (!grouped) return [{ value: '', label: 'All accounts' }];
-    const options = [{ value: '', label: 'All accounts' }];
-    (['company', 'customers', 'vendors', 'employees'] as const).forEach((key) => {
-      const group = grouped[key];
-      if (!group?.accounts.length) return;
-      group.accounts.forEach((acc) => {
-        options.push({ value: acc.id, label: `${group.label}: ${acc.name}` });
-      });
-    });
-    return options;
-  }, [grouped]);
-
-  const allAccountOptions = useMemo(
-    () => accounts.map((a) => ({ value: a.id, label: `${a.name} (${a.type})` })),
-    [accounts]
-  );
-
   const handleExportLedger = async (format: 'csv' | 'html') => {
     const query = buildQueryString({
       startDate: appliedDates.startDate,
@@ -522,7 +505,8 @@ export default function LedgerPage() {
                   label="Filter by account"
                   value={selectedAccountId}
                   onChange={handleAccountFilterChange}
-                  options={accountFilterOptions}
+                  onSearch={searchLedgerAccounts}
+                  options={[{ value: '', label: 'All accounts' }]}
                 />
               </div>
               <div className="flex gap-2">
@@ -671,8 +655,8 @@ export default function LedgerPage() {
                   <CardBody>
                     <h3 className="font-bold text-slate-900 mb-4">Transfer Between Ledgers</h3>
                     <form onSubmit={handleTransferSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <SearchableSelect label="From Account" value={transferForm.fromAccountId} onChange={(v) => setTransferForm({ ...transferForm, fromAccountId: v })} options={[{ value: '', label: 'Select source' }, ...allAccountOptions]} />
-                      <SearchableSelect label="To Account" value={transferForm.toAccountId} onChange={(v) => setTransferForm({ ...transferForm, toAccountId: v })} options={[{ value: '', label: 'Select destination' }, ...allAccountOptions]} />
+                      <SearchableSelect label="From Account" value={transferForm.fromAccountId} onChange={(v) => setTransferForm({ ...transferForm, fromAccountId: v })} onSearch={searchLedgerAccounts} options={[{ value: '', label: 'Select source' }]} />
+                      <SearchableSelect label="To Account" value={transferForm.toAccountId} onChange={(v) => setTransferForm({ ...transferForm, toAccountId: v })} onSearch={searchLedgerAccounts} options={[{ value: '', label: 'Select destination' }]} />
                       <Select label="Currency" value={transferForm.currency} onChange={(e) => setTransferForm({ ...transferForm, currency: e.target.value as 'PKR' | 'SAR' })} options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]} />
                       <Input label="Amount" type="number" value={transferForm.amount} onChange={(e) => setTransferForm({ ...transferForm, amount: e.target.value })} required />
                       <Input label="Exchange Rate" type="number" value={transferForm.exchangeRate} onChange={(e) => setTransferForm({ ...transferForm, exchangeRate: e.target.value })} />
@@ -714,7 +698,7 @@ export default function LedgerPage() {
                             <button type="button" onClick={() => removeJournalLine(idx)} className="absolute top-2 right-2 text-red-500 hover:text-red-700" title="Remove line">
                               <Trash2 className="w-4 h-4" />
                             </button>
-                            <SearchableSelect label="Account" value={line.accountId} onChange={(v) => updateJournalLine(idx, { accountId: v })} options={[{ value: '', label: 'Select account' }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]} />
+                            <SearchableSelect label="Account" value={line.accountId} onChange={(v) => updateJournalLine(idx, { accountId: v })} onSearch={searchLedgerAccounts} options={[{ value: '', label: 'Select account' }]} />
                             <Input label="Debit" type="number" value={line.debit} onChange={(e) => updateJournalLine(idx, { debit: e.target.value, credit: e.target.value ? '' : line.credit })} />
                             <Input label="Credit" type="number" value={line.credit} onChange={(e) => updateJournalLine(idx, { credit: e.target.value, debit: e.target.value ? '' : line.debit })} />
                             <Input label="Line note" value={line.description} onChange={(e) => updateJournalLine(idx, { description: e.target.value })} className="md:col-span-2" />

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { Plus, Search, BookOpen } from 'lucide-react';
+import { Plus, Search, BookOpen, Download } from 'lucide-react';
 import api from '@/lib/api';
 import { RootState } from '@/store';
 import { Customer, CustomerLedger, ApiResponse } from '@/types';
@@ -42,6 +42,7 @@ export default function CustomersPage() {
   const [ledgerTx, setLedgerTx] = useState<LedgerTransactionRow[]>([]);
   const [ledgerCurrency, setLedgerCurrency] = useState<'PKR' | 'SAR'>('PKR');
   const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerCustomerId, setLedgerCustomerId] = useState<string | null>(null);
 
   const loadCustomers = () => {
     setLoading(true);
@@ -96,6 +97,7 @@ export default function CustomersPage() {
   };
 
   const viewLedger = async (c: Customer, currency: 'PKR' | 'SAR' = ledgerCurrency) => {
+    setLedgerCustomerId(c.id);
     setLedgerLoading(true);
     try {
       const res = await api.get<ApiResponse<CustomerLedger & { transactions: LedgerTransactionRow[] }>>(`/customers/${c.id}/ledger?currency=${currency}`);
@@ -105,6 +107,21 @@ export default function CustomersPage() {
       alert((err as Error).message);
     } finally {
       setLedgerLoading(false);
+    }
+  };
+
+  const exportLedger = async (format: 'csv' | 'html') => {
+    if (!ledgerCustomerId) return;
+    const qs = `?currency=${ledgerCurrency}&format=${format}`;
+    try {
+      if (format === 'html') {
+        const html = await api.getHtml(`/customers/${ledgerCustomerId}/ledger/export${qs}`);
+        api.openHtmlInNewTab(html);
+      } else {
+        await api.downloadFile(`/customers/${ledgerCustomerId}/ledger/export${qs}`, 'customer-ledger.csv');
+      }
+    } catch (err) {
+      alert((err as Error).message);
     }
   };
 
@@ -243,7 +260,15 @@ export default function CustomersPage() {
                   {ledger.customer.tradePartnerId ? ` · ${ledger.customer.tradePartnerId}` : ''}
                 </p>
               </div>
-              <Button variant="secondary" onClick={() => setLedger(null)}>Close</Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={() => exportLedger('csv')} disabled={!ledger.account}>
+                  <Download className="w-4 h-4 mr-1" />Excel
+                </Button>
+                <Button variant="secondary" onClick={() => exportLedger('html')} disabled={!ledger.account}>
+                  <Download className="w-4 h-4 mr-1" />PDF
+                </Button>
+                <Button variant="secondary" onClick={() => setLedger(null)}>Close</Button>
+              </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div className="p-3 bg-slate-50 rounded-lg"><p className="text-xs text-slate-500">Total Billed</p><p className="font-bold">{formatCurrency(ledger.summary.totalBilled)}</p></div>

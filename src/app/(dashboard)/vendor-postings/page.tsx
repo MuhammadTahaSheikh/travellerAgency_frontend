@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { CheckCircle, Pencil, Plus } from 'lucide-react';
+import { searchVendors } from '@/lib/searchableOptions';
 import api from '@/lib/api';
 import { Vendor, ApiResponse } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -140,7 +141,7 @@ export default function VendorPostingsPage() {
         <Card className="mb-6">
           <CardBody>
             <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <SearchableSelect label="Vendor" value={createForm.vendorId} onChange={(v) => setCreateForm({ ...createForm, vendorId: v })} options={[{ value: '', label: 'Select vendor' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))]} />
+              <SearchableSelect label="Vendor" value={createForm.vendorId} onChange={(v) => setCreateForm({ ...createForm, vendorId: v })} onSearch={searchVendors} options={[{ value: '', label: 'Select vendor' }]} />
               <Select label="Service" value={createForm.serviceType} onChange={(e) => setCreateForm({ ...createForm, serviceType: e.target.value })} options={[{ value: 'HOTEL', label: 'Hotel' }, { value: 'TICKET', label: 'Ticket' }, { value: 'VISA', label: 'Visa' }, { value: 'TRANSPORT', label: 'Transport' }]} />
               <Input label="Description" value={createForm.description} onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })} required />
               <Input label="Expected Cost" type="number" value={createForm.expectedCost} onChange={(e) => setCreateForm({ ...createForm, expectedCost: e.target.value })} required />
@@ -161,7 +162,7 @@ export default function VendorPostingsPage() {
           <CardBody>
             <h3 className="font-bold mb-4">Edit Pending Posting</h3>
             <form onSubmit={handleUpdate} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <SearchableSelect label="Vendor" value={editForm.vendorId} onChange={(v) => setEditForm({ ...editForm, vendorId: v })} options={[{ value: '', label: 'Select vendor' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))]} />
+              <SearchableSelect label="Vendor" value={editForm.vendorId} onChange={(v) => setEditForm({ ...editForm, vendorId: v })} onSearch={searchVendors} options={[{ value: '', label: 'Select vendor' }]} />
               <Input label="Expected Cost" type="number" value={editForm.expectedCost} onChange={(e) => setEditForm({ ...editForm, expectedCost: e.target.value })} />
               <Input label="Due Date" type="date" value={editForm.dueDate} onChange={(e) => setEditForm({ ...editForm, dueDate: e.target.value })} />
               <Input label="Description" value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} className="md:col-span-2" />

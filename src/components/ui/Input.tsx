@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { clsx } from 'clsx';
-import { ChevronDown, Search } from 'lucide-react';
+import { ChevronDown, Search, Loader2 } from 'lucide-react';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -66,6 +66,9 @@ interface SearchableSelectProps {
   disabled?: boolean;
   className?: string;
   searchThreshold?: number;
+  /** Server-side search — when provided, queries the API as the user types */
+  onSearch?: (query: string) => Promise<{ value: string; label: string }[]>;
+  selectedLabel?: string;
 }
 
 export function SearchableSelect({
@@ -78,19 +81,60 @@ export function SearchableSelect({
   disabled,
   className,
   searchThreshold = 8,
+  onSearch,
+  selectedLabel,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [asyncOptions, setAsyncOptions] = useState<{ value: string; label: string }[]>([]);
+  const [loading, setLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const selected = options.find((o) => o.value === value);
-  const useSearch = options.length >= searchThreshold;
+  const staticSelected = options.find((o) => o.value === value);
+  const asyncSelected = asyncOptions.find((o) => o.value === value);
+  const selectedLabelText = staticSelected?.label || asyncSelected?.label || selectedLabel;
+  const useSearch = Boolean(onSearch) || options.length >= searchThreshold;
 
-  const filtered = useMemo(() => {
+  const runSearch = useCallback(async (query: string) => {
+    if (!onSearch) return;
+    setLoading(true);
+    try {
+      const results = await onSearch(query);
+      setAsyncOptions(results);
+    } catch {
+      setAsyncOptions([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [onSearch]);
+
+  useEffect(() => {
+    if (!open || !onSearch) return;
+    runSearch('');
+  }, [open, onSearch, runSearch]);
+
+  useEffect(() => {
+    if (!onSearch || !open) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => runSearch(search), 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [search, onSearch, open, runSearch]);
+
+  const displayOptions = useMemo(() => {
+    if (onSearch) {
+      const merged = [...asyncOptions];
+      if (value && selectedLabelText && !merged.some((o) => o.value === value)) {
+        merged.unshift({ value, label: selectedLabelText });
+      }
+      return merged;
+    }
     if (!search.trim()) return options;
     const q = search.trim().toLowerCase();
     return options.filter((o) => o.label.toLowerCase().includes(q));
-  }, [options, search]);
+  }, [onSearch, asyncOptions, options, search, value, selectedLabelText]);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -130,8 +174,8 @@ export function SearchableSelect({
           disabled && 'opacity-60 cursor-not-allowed'
         )}
       >
-        <span className={selected ? 'text-slate-900 truncate' : 'text-slate-400 truncate'}>
-          {selected?.label || placeholder}
+        <span className={value ? 'text-slate-900 truncate' : 'text-slate-400 truncate'}>
+          {selectedLabelText || placeholder}
         </span>
         <ChevronDown className={clsx('w-4 h-4 text-slate-400 shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
@@ -151,11 +195,15 @@ export function SearchableSelect({
             </div>
           </div>
           <ul className="max-h-56 overflow-y-auto py-1">
-            {filtered.length === 0 ? (
+            {loading ? (
+              <li className="px-3 py-3 text-sm text-slate-400 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" /> Searching...
+              </li>
+            ) : displayOptions.length === 0 ? (
               <li className="px-3 py-2 text-sm text-slate-400">No matches</li>
             ) : (
-              filtered.map((opt) => (
-                <li key={opt.value}>
+              displayOptions.map((opt) => (
+                <li key={opt.value || opt.label}>
                   <button
                     type="button"
                     className={clsx(

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { Plus, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
+import { searchCustomers, searchPackages, searchVendors } from '@/lib/searchableOptions';
 import { buildQueryString } from '@/lib/query';
 import { RootState } from '@/store';
 import { Booking, Customer, Package, Vendor, BookingServiceItem, Invoice, ApiResponse } from '@/types';
@@ -187,10 +188,8 @@ export default function BookingsPage() {
     }
   };
 
-  const vendorsForType = (type: string) => {
-    const cat = type === 'HOTEL' ? 'HOTEL' : type === 'VISA' ? 'VISA' : type === 'TICKET' ? 'TICKETING' : 'OTHER';
-    return vendors.filter((v) => v.category === cat);
-  };
+  const vendorCategoryForType = (type: string) =>
+    type === 'HOTEL' ? 'HOTEL' : type === 'VISA' ? 'VISA' : type === 'TICKET' ? 'TICKETING' : 'OTHER';
 
   return (
     <div>
@@ -222,8 +221,8 @@ export default function BookingsPage() {
             <h3 className="font-bold text-slate-900 mb-4">{editingId ? 'Edit Booking' : 'New Booking'}</h3>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <SearchableSelect label="Customer" value={form.customerId} onChange={(v) => updateForm({ customerId: v })} options={[{ value: '', label: 'Select customer' }, ...customers.map((c) => ({ value: c.id, label: c.customerType === 'B2B' && c.companyName ? `${c.companyName} (${c.tradePartnerId || 'B2B'})` : `${c.firstName} ${c.lastName}` }))]} />
-                <SearchableSelect label="Package (optional)" value={form.packageId} onChange={(v) => updateForm({ packageId: v })} options={[{ value: '', label: 'No package' }, ...packages.map((p) => ({ value: p.id, label: `${p.name} (${formatCurrency(p.price)}/person)` }))]} />
+                <SearchableSelect label="Customer" value={form.customerId} onChange={(v) => updateForm({ customerId: v })} onSearch={searchCustomers} options={[{ value: '', label: 'Select customer' }]} />
+                <SearchableSelect label="Package (optional)" value={form.packageId} onChange={(v) => updateForm({ packageId: v })} onSearch={searchPackages} options={[{ value: '', label: 'No package' }]} />
                 <Input label="Total Amount" type="number" value={form.totalAmount} onChange={(e) => setForm({ ...form, totalAmount: e.target.value })} required />
                 <Input label="Travelers" type="number" min={1} value={form.numTravelers} onChange={(e) => updateForm({ numTravelers: e.target.value })} />
                 <Input label="Travel Date" type="date" value={form.travelDate} onChange={(e) => updateForm({ travelDate: e.target.value })} />
@@ -260,7 +259,7 @@ export default function BookingsPage() {
                           <Input label="Description" value={item.description} onChange={(e) => updateServiceItem(idx, { description: e.target.value })} placeholder="e.g. Dubai Flight" />
                           <Input label="Selling Price" type="number" value={String(item.amount)} onChange={(e) => updateServiceItem(idx, { amount: parseFloat(e.target.value) || 0 })} />
                           <Input label="Vendor Cost" type="number" value={String(item.costAmount || 0)} onChange={(e) => updateServiceItem(idx, { costAmount: parseFloat(e.target.value) || 0 })} />
-                          <SearchableSelect label="Vendor" value={item.vendorId || ''} onChange={(v) => updateServiceItem(idx, { vendorId: v })} options={[{ value: '', label: 'Auto-assign' }, ...vendorsForType(item.serviceType).map((v) => ({ value: v.id, label: v.name }))]} />
+                          <SearchableSelect label="Vendor" value={item.vendorId || ''} onChange={(v) => updateServiceItem(idx, { vendorId: v })} onSearch={(q) => searchVendors(q, vendorCategoryForType(item.serviceType))} options={[{ value: '', label: 'Auto-assign' }]} />
 
                           {item.serviceType === 'TICKET' && (
                             <>

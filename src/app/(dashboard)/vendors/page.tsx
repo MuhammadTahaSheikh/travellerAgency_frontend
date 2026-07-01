@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Wallet, BookOpen } from 'lucide-react';
+import { Plus, Wallet, BookOpen, Download } from 'lucide-react';
+import { searchPaymentAccounts } from '@/lib/searchableOptions';
 import api from '@/lib/api';
 import { Vendor, Account, ApiResponse } from '@/types';
 import { uploadAttachment } from '@/lib/upload';
@@ -106,6 +107,21 @@ export default function VendorsPage() {
     }
   };
 
+  const exportVendorLedgerFile = async (format: 'csv' | 'html') => {
+    if (!vendorLedger) return;
+    const qs = `?currency=${ledgerCurrency}&format=${format}`;
+    try {
+      if (format === 'html') {
+        const html = await api.getHtml(`/vendors/${vendorLedger.vendor.id}/ledger/export${qs}`);
+        api.openHtmlInNewTab(html);
+      } else {
+        await api.downloadFile(`/vendors/${vendorLedger.vendor.id}/ledger/export${qs}`, 'vendor-ledger.csv');
+      }
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -123,7 +139,7 @@ export default function VendorsPage() {
           <CardBody>
             <h3 className="font-bold mb-4">Pay Vendor — {payVendor.name}</h3>
             <form onSubmit={handlePayVendor} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <SearchableSelect label="From Account" value={payForm.accountId} onChange={(v) => setPayForm({ ...payForm, accountId: v })} options={[{ value: '', label: 'Select' }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]} />
+              <SearchableSelect label="From Account" value={payForm.accountId} onChange={(v) => setPayForm({ ...payForm, accountId: v })} onSearch={searchPaymentAccounts} options={[{ value: '', label: 'Select' }]} />
               <Input label="Amount" type="number" value={payForm.amount} onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })} required />
               <Select label="Currency" value={payForm.currency} onChange={(e) => setPayForm({ ...payForm, currency: e.target.value })} options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]} />
               <Input label="Exchange Rate" type="number" value={payForm.exchangeRate} onChange={(e) => setPayForm({ ...payForm, exchangeRate: e.target.value })} />
@@ -141,9 +157,17 @@ export default function VendorsPage() {
       {vendorLedger && (
         <Card className="mb-6">
           <CardBody>
-            <div className="flex justify-between items-start mb-4">
+            <div className="flex flex-wrap justify-between items-start gap-3 mb-4">
               <h3 className="font-bold">Vendor Ledger — {vendorLedger.vendor.name}</h3>
-              <Button variant="secondary" onClick={() => setVendorLedger(null)}>Close</Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={() => exportVendorLedgerFile('csv')}>
+                  <Download className="w-4 h-4 mr-1" />Excel
+                </Button>
+                <Button variant="secondary" onClick={() => exportVendorLedgerFile('html')}>
+                  <Download className="w-4 h-4 mr-1" />PDF
+                </Button>
+                <Button variant="secondary" onClick={() => setVendorLedger(null)}>Close</Button>
+              </div>
             </div>
             <div className="max-w-xs mb-4">
               <Select label="Currency" value={ledgerCurrency} onChange={(e) => { const c = e.target.value as 'PKR' | 'SAR'; setLedgerCurrency(c); viewVendorLedger(vendorLedger.vendor, c); }} options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]} />

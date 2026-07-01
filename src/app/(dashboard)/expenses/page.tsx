@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { Plus } from 'lucide-react';
 import api from '@/lib/api';
+import { searchPaymentAccounts, searchVendors } from '@/lib/searchableOptions';
 import { buildQueryString } from '@/lib/query';
 import { uploadAttachment } from '@/lib/upload';
 import { RootState } from '@/store';
@@ -206,7 +207,7 @@ export default function ExpensesPage() {
               <Select label="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} options={expenseCategories} />
               {!editingId && (
                 <>
-                  <SearchableSelect label="Account" value={form.accountId} onChange={(v) => setForm({ ...form, accountId: v })} options={[{ value: '', label: 'Select account' }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]} />
+                  <SearchableSelect label="Account" value={form.accountId} onChange={(v) => setForm({ ...form, accountId: v })} onSearch={searchPaymentAccounts} options={[{ value: '', label: 'Select account' }]} />
                   <Select label="Currency" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value as 'PKR' | 'SAR' })} options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]} />
                   <Input label="Amount" type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required />
                   <Input label="Exchange Rate (PKR/SAR)" type="number" value={form.exchangeRate} onChange={(e) => setForm({ ...form, exchangeRate: e.target.value })} hint="Used when currency is SAR or for dual-currency ledger posting" />
@@ -216,7 +217,7 @@ export default function ExpensesPage() {
                 <Input label="Amount (read-only)" type="number" value={form.amount} disabled />
               )}
               <Input label="Expense Date" type="date" value={form.expenseDate} onChange={(e) => setForm({ ...form, expenseDate: e.target.value })} />
-              <SearchableSelect label="Vendor Account" value={form.vendorId} onChange={(v) => setForm({ ...form, vendorId: v })} options={[{ value: '', label: 'General expense pool' }, ...vendors.map((v) => ({ value: v.id, label: `${v.name} (${v.category})` }))]} />
+              <SearchableSelect label="Vendor Account" value={form.vendorId} onChange={(v) => setForm({ ...form, vendorId: v })} onSearch={searchVendors} options={[{ value: '', label: 'General expense pool' }]} />
               <Input label="Vendor (text)" value={form.vendor} onChange={(e) => setForm({ ...form, vendor: e.target.value })} />
               <div className="md:col-span-2">
                 <Textarea label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required rows={2} />

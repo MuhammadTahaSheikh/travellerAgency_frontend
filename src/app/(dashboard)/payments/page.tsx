@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux';
 import { Plus, CheckCircle } from 'lucide-react';
 import { uploadAttachment } from '@/lib/upload';
 import api from '@/lib/api';
+import { searchInvoices, searchPaymentAccounts } from '@/lib/searchableOptions';
 import { buildQueryString } from '@/lib/query';
 import { RootState } from '@/store';
 import { Invoice, Account, Payment, ApiResponse } from '@/types';
@@ -145,8 +146,8 @@ export default function PaymentsPage() {
         <Card className="mb-6">
           <CardBody>
             <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <SearchableSelect label="Invoice (optional)" value={form.invoiceId} onChange={(v) => setForm({ ...form, invoiceId: v })} options={[{ value: '', label: 'No invoice' }, ...invoices.map((i) => ({ value: i.id, label: `${i.invoiceNumber} - ${formatCurrency(i.totalAmount)}` }))]} />
-              <SearchableSelect label="Account" value={form.accountId} onChange={(v) => setForm({ ...form, accountId: v })} options={[{ value: '', label: 'Select account' }, ...accounts.map((a) => ({ value: a.id, label: `${a.name} (${a.type})` }))]} />
+              <SearchableSelect label="Invoice (optional)" value={form.invoiceId} onChange={(v) => setForm({ ...form, invoiceId: v })} onSearch={searchInvoices} options={[{ value: '', label: 'No invoice' }]} />
+              <SearchableSelect label="Account" value={form.accountId} onChange={(v) => setForm({ ...form, accountId: v })} onSearch={searchPaymentAccounts} options={[{ value: '', label: 'Select account' }]} />
               <Input label="Amount" type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required />
               <Select label="Currency" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]} />
               <Input label="Exchange Rate (PKR per SAR)" type="number" value={form.exchangeRate} onChange={(e) => setForm({ ...form, exchangeRate: e.target.value })} />
