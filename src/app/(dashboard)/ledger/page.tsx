@@ -17,6 +17,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
 import { PageHeader, LoadingSpinner, formatCurrency, formatDate, TabGroup, EmptyState } from '@/components/ui/Common';
 import { LedgerTransactionTable, LedgerTransactionRow } from '@/components/ledger/LedgerTransactionTable';
+import { InternalTransferButton, InternalTransferModal } from '@/components/ledger/InternalTransferModal';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
 interface JournalEntry {
@@ -229,6 +230,7 @@ export default function LedgerPage() {
   const [journalAttachment, setJournalAttachment] = useState<File | null>(null);
   const [journalSaving, setJournalSaving] = useState(false);
   const [showTransferForm, setShowTransferForm] = useState(false);
+  const [showInternalTransfer, setShowInternalTransfer] = useState(false);
   const [transferSaving, setTransferSaving] = useState(false);
   const [transferForm, setTransferForm] = useState({
     fromAccountId: '', toAccountId: '', amount: '', currency: 'PKR' as 'PKR' | 'SAR',
@@ -472,6 +474,9 @@ export default function LedgerPage() {
       <PageHeader
         title="Internal Ledger System"
         subtitle="Dual-currency ledgers (PKR / SAR) for company, customers, vendors, and employees"
+        action={canManageJournal ? (
+          <InternalTransferButton onClick={() => setShowInternalTransfer(true)} />
+        ) : undefined}
       />
 
       <div className="flex flex-wrap items-end gap-4 mb-4">
@@ -645,6 +650,7 @@ export default function LedgerPage() {
             <>
               {canManageJournal && (
                 <div className="mb-4 flex flex-wrap gap-2 justify-end">
+                  <InternalTransferButton onClick={() => setShowInternalTransfer(true)} />
                   <Button variant="secondary" onClick={() => setShowTransferForm(!showTransferForm)}>
                     <ArrowRightLeft className="w-4 h-4 mr-2" />Ledger Transfer
                   </Button>
@@ -819,6 +825,12 @@ export default function LedgerPage() {
           )}
         </>
       )}
+
+      <InternalTransferModal
+        open={showInternalTransfer}
+        onClose={() => setShowInternalTransfer(false)}
+        onSuccess={() => loadData()}
+      />
     </div>
   );
 }

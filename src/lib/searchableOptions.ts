@@ -8,6 +8,16 @@ function encode(q: string) {
   return encodeURIComponent(q.trim());
 }
 
+export async function searchB2BCustomers(query: string): Promise<SelectOption[]> {
+  const res = await api.get<ApiResponse<Customer[]>>(`/customers?search=${encode(query)}&limit=50&customerType=B2B`);
+  return (res.data || []).map((c) => ({
+    value: c.id,
+    label: c.companyName
+      ? `${c.companyName} (${c.tradePartnerId || 'B2B'})`
+      : `${c.firstName} ${c.lastName}`,
+  }));
+}
+
 export async function searchCustomers(query: string): Promise<SelectOption[]> {
   const res = await api.get<ApiResponse<Customer[]>>(`/customers?search=${encode(query)}&limit=50`);
   return (res.data || []).map((c) => ({

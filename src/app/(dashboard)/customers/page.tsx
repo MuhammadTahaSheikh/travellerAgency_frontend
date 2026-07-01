@@ -7,7 +7,8 @@ import api from '@/lib/api';
 import { exportLedgerCsv, exportLedgerPdf } from '@/lib/ledgerExport';
 import { RootState } from '@/store';
 import { Customer, CustomerLedger, ApiResponse } from '@/types';
-import { canCreateResource, canEditResource, canDeleteResource } from '@/lib/permissions';
+import { canCreateResource, canEditResource, canDeleteResource, isAdminOrAbove } from '@/lib/permissions';
+import { InternalTransferButton, InternalTransferModal } from '@/components/ledger/InternalTransferModal';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -32,6 +33,7 @@ const emptyForm = {
 
 export default function CustomersPage() {
   const user = useSelector((state: RootState) => state.auth.user);
+  const canTransfer = isAdminOrAbove(user);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -44,6 +46,7 @@ export default function CustomersPage() {
   const [ledgerCurrency, setLedgerCurrency] = useState<'PKR' | 'SAR'>('PKR');
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledgerCustomerId, setLedgerCustomerId] = useState<string | null>(null);
+  const [showInternalTransfer, setShowInternalTransfer] = useState(false);
 
   const loadCustomers = () => {
     setLoading(true);
@@ -144,9 +147,16 @@ export default function CustomersPage() {
       <PageHeader
         title="Customer Management"
         subtitle="Manage your travel agency customers"
-        action={canCreateResource(user, 'customers') ? (
-          <Button onClick={() => { resetForm(); setShowForm(true); }}><Plus className="w-4 h-4 mr-2" />Add Customer</Button>
-        ) : undefined}
+        action={(
+          <div className="flex flex-wrap gap-2">
+            {canTransfer && (
+              <InternalTransferButton onClick={() => setShowInternalTransfer(true)} />
+            )}
+            {canCreateResource(user, 'customers') && (
+              <Button onClick={() => { resetForm(); setShowForm(true); }}><Plus className="w-4 h-4 mr-2" />Add Customer</Button>
+            )}
+          </div>
+        )}
       />
 
       {showForm && (
@@ -271,6 +281,9 @@ export default function CustomersPage() {
                 <Button variant="secondary" onClick={() => exportLedger('html')} disabled={!ledger.account}>
                   <Download className="w-4 h-4 mr-1" />PDF
                 </Button>
+                {canTransfer && ledger.customer.customerType === 'B2B' && (
+                  <InternalTransferButton onClick={() => setShowInternalTransfer(true)} />
+                )}
                 <Button variant="secondary" onClick={() => setLedger(null)}>Close</Button>
               </div>
             </div>
@@ -317,6 +330,20 @@ export default function CustomersPage() {
           </CardBody>
         </Card>
       )}
+
+      <InternalTransferModal
+        open={showInternalTransfer}
+        onClose={() => setShowInternalTransfer(false)}
+        onSuccess={() => {
+          loadCustomers();
+          if (ledger?.customer) viewLedger(ledger.customer as Customer, ledgerCurrency);
+        }}
+        prefill={ledger?.customer?.customerType === 'B2B' ? {
+          sourceType: 'B2B',
+          sourceEntityId: ledger.customer.id,
+          sourceLabel: ledger.customer.companyName || `${ledger.customer.firstName} ${ledger.customer.lastName}`,
+        } : undefined}
+      />
     </div>
   );
 }

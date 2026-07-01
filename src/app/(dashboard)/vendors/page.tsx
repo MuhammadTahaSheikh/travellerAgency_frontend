@@ -1,13 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
 import { Plus, Wallet, BookOpen, Download } from 'lucide-react';
 import { searchPaymentAccounts } from '@/lib/searchableOptions';
 import api from '@/lib/api';
 import { exportLedgerCsv, exportLedgerPdf } from '@/lib/ledgerExport';
+import { RootState } from '@/store';
+import { isAdminOrAbove } from '@/lib/permissions';
 import { Vendor, Account, ApiResponse } from '@/types';
 import { uploadAttachment } from '@/lib/upload';
 import { LedgerTransactionTable, LedgerTransactionRow } from '@/components/ledger/LedgerTransactionTable';
+import { InternalTransferButton, InternalTransferModal } from '@/components/ledger/InternalTransferModal';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, SearchableSelect } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -27,6 +31,8 @@ type VendorPayable = {
 };
 
 export default function VendorsPage() {
+  const user = useSelector((state: RootState) => state.auth.user);
+  const canTransfer = isAdminOrAbove(user);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [payables, setPayables] = useState<VendorPayable[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +46,7 @@ export default function VendorsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [vendorLedger, setVendorLedger] = useState<{ vendor: Vendor; transactions: LedgerTransactionRow[] } | null>(null);
   const [ledgerCurrency, setLedgerCurrency] = useState<'PKR' | 'SAR'>('PKR');
+  const [showInternalTransfer, setShowInternalTransfer] = useState(false);
 
   const loadData = () => {
     setLoading(true);
@@ -128,7 +135,14 @@ export default function VendorsPage() {
       <PageHeader
         title="Vendor Management"
         subtitle="Manage hotel, visa, and ticketing suppliers with ledger accounts"
-        action={<Button onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-2" />Add Vendor</Button>}
+        action={(
+          <div className="flex flex-wrap gap-2">
+            {canTransfer && (
+              <InternalTransferButton onClick={() => setShowInternalTransfer(true)} />
+            )}
+            <Button onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-2" />Add Vendor</Button>
+          </div>
+        )}
       />
 
       {loadError && (
@@ -167,6 +181,9 @@ export default function VendorsPage() {
                 <Button variant="secondary" onClick={() => exportVendorLedgerFile('html')}>
                   <Download className="w-4 h-4 mr-1" />PDF
                 </Button>
+                {canTransfer && (
+                  <InternalTransferButton onClick={() => setShowInternalTransfer(true)} />
+                )}
                 <Button variant="secondary" onClick={() => setVendorLedger(null)}>Close</Button>
               </div>
             </div>
@@ -289,6 +306,17 @@ export default function VendorsPage() {
           </Card>
         </>
       )}
+
+      <InternalTransferModal
+        open={showInternalTransfer}
+        onClose={() => setShowInternalTransfer(false)}
+        onSuccess={loadData}
+        prefill={vendorLedger ? {
+          sourceType: 'VENDOR',
+          sourceEntityId: vendorLedger.vendor.id,
+          sourceLabel: vendorLedger.vendor.name,
+        } : undefined}
+      />
     </div>
   );
 }
