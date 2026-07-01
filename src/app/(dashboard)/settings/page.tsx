@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAppDispatch } from '@/store/hooks';
+import { RefreshCw } from 'lucide-react';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import api from '@/lib/api';
 import { ApiResponse } from '@/types';
 import { CURRENCY_OPTIONS } from '@/lib/currency';
 import { fetchAppSettings } from '@/store/slices/settingsSlice';
+import { formatExchangeRateLabel, useExchangeRate } from '@/contexts/ExchangeRateContext';
+import { isSuperAdmin } from '@/lib/permissions';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
@@ -20,13 +23,17 @@ const SETTING_LABELS: Record<string, string> = {
   currency_locale: 'Currency Locale (optional)',
   tax_rate: 'Tax Rate (%)',
   invoice_prefix: 'Invoice Prefix',
+  default_pkr_sar_rate: 'Default PKR/SAR Rate (manual fallback)',
 };
 
 export default function SettingsPage() {
   const dispatch = useAppDispatch();
+  const user = useAppSelector((s) => s.auth.user);
+  const { rate, loading: rateLoading, refresh } = useExchangeRate();
   const [settings, setSettings] = useState<Record<string, Record<string, string>>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingDefaultRate, setSavingDefaultRate] = useState(false);
 
   const loadSettings = () => {
     setLoading(true);
@@ -59,6 +66,21 @@ export default function SettingsPage() {
       ...prev,
       [category]: { ...prev[category], [key]: value },
     }));
+  };
+
+  const handleSaveDefaultRate = async () => {
+    if (!rate) return;
+    setSavingDefaultRate(true);
+    try {
+      await api.put('/currency/default-rate', { rate: rate.pkrPerSar });
+      await dispatch(fetchAppSettings());
+      loadSettings();
+      alert('Default PKR/SAR rate updated from live market rate');
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setSavingDefaultRate(false);
+    }
   };
 
   const renderSettingInput = (category: string, key: string, value: string) => {
@@ -95,6 +117,39 @@ export default function SettingsPage() {
         title="System Settings"
         subtitle="Configure company info, currency, and financial preferences. Currency applies across the entire app."
       />
+
+      <Card className="mb-6">
+        <CardHeader>
+          <h3 className="font-bold text-slate-900">PKR / SAR Exchange Rate</h3>
+          <p className="text-xs text-slate-500 mt-1">Live market rate refreshes every 30 minutes. Use it when recording SAR payments, expenses, and transfers.</p>
+        </CardHeader>
+        <CardBody>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <p className="text-lg font-bold text-teal-700">
+                {rateLoading && !rate ? 'Loading…' : rate ? formatExchangeRateLabel(rate) : 'Rate unavailable'}
+              </p>
+              {rate && (
+                <p className="text-sm text-slate-500 mt-1">
+                  System default: <strong>{rate.manualDefault.toFixed(2)} PKR/SAR</strong>
+                  {rate.provider ? ` · Source: ${rate.provider}` : ''}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" onClick={() => refresh(true)} disabled={rateLoading}>
+                <RefreshCw className={`w-4 h-4 mr-2 ${rateLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              {isSuperAdmin(user) && rate && (
+                <Button type="button" onClick={handleSaveDefaultRate} loading={savingDefaultRate}>
+                  Set live rate as default
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardBody>
+      </Card>
 
       <div className="space-y-4 sm:space-y-6">
         {Object.entries(settings).map(([category, categorySettings]) => (

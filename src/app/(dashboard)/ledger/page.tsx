@@ -17,7 +17,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
 import { PageHeader, LoadingSpinner, formatCurrency, formatDate, TabGroup, EmptyState } from '@/components/ui/Common';
 import { LedgerTransactionTable, LedgerTransactionRow } from '@/components/ledger/LedgerTransactionTable';
-import { InternalTransferButton, InternalTransferModal } from '@/components/ledger/InternalTransferModal';
+import { ExchangeRateInput } from '@/components/currency/ExchangeRateInput';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
 interface JournalEntry {
@@ -677,7 +677,7 @@ export default function LedgerPage() {
                       <SearchableSelect label="To Account" value={transferForm.toAccountId} onChange={(v) => setTransferForm({ ...transferForm, toAccountId: v })} onSearch={searchLedgerAccounts} options={[{ value: '', label: 'Select destination' }]} />
                       <Select label="Currency" value={transferForm.currency} onChange={(e) => setTransferForm({ ...transferForm, currency: e.target.value as 'PKR' | 'SAR' })} options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]} />
                       <Input label="Amount" type="number" value={transferForm.amount} onChange={(e) => setTransferForm({ ...transferForm, amount: e.target.value })} required />
-                      <Input label="Exchange Rate" type="number" value={transferForm.exchangeRate} onChange={(e) => setTransferForm({ ...transferForm, exchangeRate: e.target.value })} />
+                      <ExchangeRateInput value={transferForm.exchangeRate} onChange={(v) => setTransferForm({ ...transferForm, exchangeRate: v })} />
                       <Input label="Date" type="date" value={transferForm.date} onChange={(e) => setTransferForm({ ...transferForm, date: e.target.value })} />
                       <Input label="Reference" value={transferForm.reference} onChange={(e) => setTransferForm({ ...transferForm, reference: e.target.value })} />
                       <div className="md:col-span-2">
@@ -723,7 +723,7 @@ export default function LedgerPage() {
                           </div>
                         ))}
                         <p className={`text-sm ${Math.abs(journalDebitTotal - journalCreditTotal) < 0.01 ? 'text-teal-700' : 'text-red-600'}`}>
-                          Debits: {formatCurrency(journalDebitTotal)} · Credits: {formatCurrency(journalCreditTotal)}
+                          Debits: {formatCurrency(journalDebitTotal, 'PKR')} · Credits: {formatCurrency(journalCreditTotal, 'PKR')}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -758,7 +758,7 @@ export default function LedgerPage() {
                         <TableCell>
                           {je.transactions?.map((t) => (
                             <div key={t.id} className="text-xs text-slate-500 mb-0.5 last:mb-0">
-                              {t.account.name}: Dr {formatCurrency(t.debit)} / Cr {formatCurrency(t.credit)}
+                              {t.account.name}: Dr {formatCurrency(t.debit, 'PKR')} / Cr {formatCurrency(t.credit, 'PKR')}
                             </div>
                           ))}
                         </TableCell>
@@ -777,15 +777,9 @@ export default function LedgerPage() {
             <Card>
               <CardBody className="p-0 sm:p-0">
                 {accountDetail && (
-                  <div className="p-4 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <h3 className="font-bold">{accountDetail.account.name}</h3>
-                      <p className="text-sm text-slate-500">Account ledger — {currency} view</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => handleExportLedger('csv')}><Download className="w-4 h-4 mr-1" />Excel</Button>
-                      <Button variant="secondary" size="sm" onClick={() => handleExportLedger('html')}><Download className="w-4 h-4 mr-1" />PDF</Button>
-                    </div>
+                  <div className="p-4 border-b border-slate-100 bg-slate-50">
+                    <h3 className="font-bold">{accountDetail.account.name}</h3>
+                    <p className="text-sm text-slate-500">Account ledger — {currency} view</p>
                   </div>
                 )}
                 {(accountDetail?.transactions.length || ledgerTransactions.length) === 0 ? (

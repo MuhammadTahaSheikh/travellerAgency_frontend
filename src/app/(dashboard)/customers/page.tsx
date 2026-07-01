@@ -288,9 +288,9 @@ export default function CustomersPage() {
               </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="p-3 bg-slate-50 rounded-lg"><p className="text-xs text-slate-500">Total Billed</p><p className="font-bold">{formatCurrency(ledger.summary.totalBilled)}</p></div>
-              <div className="p-3 bg-teal-50 rounded-lg"><p className="text-xs text-slate-500">Total Paid</p><p className="font-bold text-teal-700">{formatCurrency(ledger.summary.totalPaid)}</p></div>
-              <div className="p-3 bg-amber-50 rounded-lg"><p className="text-xs text-slate-500">Outstanding</p><p className="font-bold text-amber-700">{formatCurrency(ledger.summary.outstanding)}</p></div>
+              <div className="p-3 bg-slate-50 rounded-lg"><p className="text-xs text-slate-500">Total Billed (PKR)</p><p className="font-bold">{formatCurrency(ledger.summary.totalBilled, 'PKR')}</p></div>
+              <div className="p-3 bg-teal-50 rounded-lg"><p className="text-xs text-slate-500">Total Paid (PKR)</p><p className="font-bold text-teal-700">{formatCurrency(ledger.summary.totalPaid, 'PKR')}</p></div>
+              <div className="p-3 bg-amber-50 rounded-lg"><p className="text-xs text-slate-500">Outstanding (PKR)</p><p className="font-bold text-amber-700">{formatCurrency(ledger.summary.outstanding, 'PKR')}</p></div>
               <div className="p-3 bg-slate-50 rounded-lg">
                 <p className="text-xs text-slate-500">Ledger ({ledgerCurrency})</p>
                 <p className="font-bold">{formatCurrency(ledgerCurrency === 'SAR' ? (ledger.summary as { ledgerBalanceSar?: number }).ledgerBalanceSar || 0 : (ledger.summary as { ledgerBalancePkr?: number }).ledgerBalancePkr ?? ledger.summary.ledgerBalance, ledgerCurrency)}</p>
@@ -321,7 +321,7 @@ export default function CustomersPage() {
                   {ledger.invoices.map((inv) => (
                     <div key={inv.id} className="flex justify-between py-1 border-b border-slate-100">
                       <span>{inv.invoiceNumber} ({inv.status})</span>
-                      <span>{formatCurrency(inv.totalAmount)} — paid {formatCurrency(inv.paidAmount)}</span>
+                      <span>{formatCurrency(inv.totalAmount, 'PKR')} — paid {formatCurrency(inv.paidAmount, 'PKR')}</span>
                     </div>
                   ))}
                 </div>

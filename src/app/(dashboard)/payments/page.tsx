@@ -10,7 +10,7 @@ import { buildQueryString } from '@/lib/query';
 import { RootState } from '@/store';
 import { Invoice, Account, Payment, ApiResponse } from '@/types';
 import { canDeleteResource } from '@/lib/permissions';
-import { Button } from '@/components/ui/Button';
+import { ExchangeRateInput } from '@/components/currency/ExchangeRateInput';
 import { Input, Select, SearchableSelect } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
@@ -150,7 +150,7 @@ export default function PaymentsPage() {
               <SearchableSelect label="Account" value={form.accountId} onChange={(v) => setForm({ ...form, accountId: v })} onSearch={searchPaymentAccounts} options={[{ value: '', label: 'Select account' }]} />
               <Input label="Amount" type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required />
               <Select label="Currency" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]} />
-              <Input label="Exchange Rate (PKR per SAR)" type="number" value={form.exchangeRate} onChange={(e) => setForm({ ...form, exchangeRate: e.target.value })} />
+              <ExchangeRateInput value={form.exchangeRate} onChange={(v) => setForm({ ...form, exchangeRate: v })} />
               <Select label="Method" value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })} options={[{ value: 'CASH', label: 'Cash' }, { value: 'BANK_TRANSFER', label: 'Bank Transfer' }, { value: 'CARD', label: 'Card' }, { value: 'CHEQUE', label: 'Cheque' }]} />
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Payment Proof (optional)</label>
@@ -190,9 +190,9 @@ export default function PaymentsPage() {
                         <TableCell className="font-semibold text-slate-900">{p.paymentNumber}</TableCell>
                         <TableCell className="hidden sm:table-cell">{p.invoice?.invoiceNumber || '—'}</TableCell>
                         <TableCell className="font-medium text-teal-700">
-                          {formatCurrency(p.amount)} {p.currency && p.currency !== 'PKR' ? p.currency : ''}
+                          {formatCurrency(p.amount, p.currency || 'PKR')}
                           {p.amountPkr != null && p.currency === 'SAR' && (
-                            <span className="block text-xs text-slate-500">≈ {formatCurrency(p.amountPkr)} PKR</span>
+                            <span className="block text-xs text-slate-500">≈ {formatCurrency(p.amountPkr, 'PKR')}</span>
                           )}
                         </TableCell>
                         <TableCell className="hidden md:table-cell capitalize">{p.method.replace('_', ' ').toLowerCase()}</TableCell>

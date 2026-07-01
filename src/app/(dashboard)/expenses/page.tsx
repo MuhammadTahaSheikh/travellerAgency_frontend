@@ -10,7 +10,7 @@ import { uploadAttachment } from '@/lib/upload';
 import { RootState } from '@/store';
 import { Account, Vendor, ApiResponse } from '@/types';
 import { canCreateResource, canEditResource, canDeleteResource } from '@/lib/permissions';
-import { Button } from '@/components/ui/Button';
+import { ExchangeRateInput } from '@/components/currency/ExchangeRateInput';
 import { Input, Select, SearchableSelect, Textarea } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
@@ -210,7 +210,11 @@ export default function ExpensesPage() {
                   <SearchableSelect label="Account" value={form.accountId} onChange={(v) => setForm({ ...form, accountId: v })} onSearch={searchPaymentAccounts} options={[{ value: '', label: 'Select account' }]} />
                   <Select label="Currency" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value as 'PKR' | 'SAR' })} options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]} />
                   <Input label="Amount" type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required />
-                  <Input label="Exchange Rate (PKR/SAR)" type="number" value={form.exchangeRate} onChange={(e) => setForm({ ...form, exchangeRate: e.target.value })} hint="Used when currency is SAR or for dual-currency ledger posting" />
+                  <ExchangeRateInput
+                    value={form.exchangeRate}
+                    onChange={(v) => setForm({ ...form, exchangeRate: v })}
+                    hint="Used when currency is SAR or for dual-currency ledger posting"
+                  />
                 </>
               )}
               {editingId && (
@@ -262,9 +266,9 @@ export default function ExpensesPage() {
                         <TableCell className="capitalize">{e.category.replace('_', ' ').toLowerCase()}</TableCell>
                         <TableCell className="hidden md:table-cell max-w-xs truncate">{e.description}</TableCell>
                         <TableCell className="font-medium text-red-600">
-                          {formatCurrency(e.amount)} {e.currency || 'PKR'}
+                          {formatCurrency(e.amount, e.currency || 'PKR')}
                           {e.currency === 'SAR' && e.amountPkr ? (
-                            <span className="block text-xs text-slate-400">≈ {formatCurrency(e.amountPkr)} PKR</span>
+                            <span className="block text-xs text-slate-400">≈ {formatCurrency(e.amountPkr, 'PKR')}</span>
                           ) : null}
                         </TableCell>
                         <TableCell className="text-slate-500">{formatDate(e.expenseDate)}</TableCell>

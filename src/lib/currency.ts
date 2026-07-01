@@ -4,7 +4,7 @@ const CURRENCY_LOCALES: Record<string, string> = {
   EUR: 'de-DE',
   GBP: 'en-GB',
   AED: 'en-AE',
-  SAR: 'ar-SA',
+  SAR: 'en-SA',
   TRY: 'tr-TR',
   INR: 'en-IN',
 };

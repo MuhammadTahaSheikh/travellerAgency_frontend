@@ -207,7 +207,7 @@ export default function VendorPostingsPage() {
                           {p.invoice?.invoiceNumber && <span className="block text-xs text-slate-500">{p.invoice.invoiceNumber}</span>}
                         </TableCell>
                         <TableCell>{p.vendor?.name || '—'}</TableCell>
-                        <TableCell>{formatCurrency(p.expectedCost)} {p.currency}</TableCell>
+                        <TableCell>{formatCurrency(p.expectedCost, p.currency || 'PKR')}</TableCell>
                         <TableCell>{p.dueDate ? formatDate(p.dueDate) : '—'}</TableCell>
                         <TableCell><Badge status={p.status}>{p.status}</Badge></TableCell>
                         <TableCell align="right">

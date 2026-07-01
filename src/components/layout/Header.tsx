@@ -8,6 +8,7 @@ import { toggleMobileMenu } from '@/store/slices/uiSlice';
 import { getUserRole } from '@/lib/permissions';
 import { Logo } from '@/components/brand/Logo';
 import Link from 'next/link';
+import { ExchangeRateTicker } from '@/components/currency/ExchangeRateTicker';
 
 export function Header() {
   const router = useRouter();
@@ -45,7 +46,11 @@ export function Header() {
             </div>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 justify-center lg:justify-start lg:ml-2">
+            <ExchangeRateTicker />
+          </div>
+
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <Link
               href="/notifications"
               className="relative p-2.5 text-slate-500 hover:text-teal-600 rounded-xl hover:bg-teal-50 transition-colors"

@@ -10,6 +10,7 @@ import { setSidebarOpen } from '@/store/slices/uiSlice';
 import { setUnauthorizedHandler } from '@/lib/authSession';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { ExchangeRateProvider } from '@/contexts/ExchangeRateContext';
 
 function AuthLoadingShell() {
   return <div className="min-h-screen bg-slate-50" aria-busy="true" />;
@@ -65,16 +66,18 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Sidebar />
-      <Header />
-      <main
-        className={`pt-[4.5rem] sm:pt-20 min-h-screen transition-all duration-300 animate-fade-in ${
-          sidebarOpen ? 'lg:pl-64' : 'lg:pl-[72px]'
-        } pl-0`}
-      >
-        <div className="px-3 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-[1600px] mx-auto">{children}</div>
-      </main>
-    </div>
+    <ExchangeRateProvider>
+      <div className="min-h-screen bg-slate-50">
+        <Sidebar />
+        <Header />
+        <main
+          className={`pt-[4.5rem] sm:pt-20 min-h-screen transition-all duration-300 animate-fade-in ${
+            sidebarOpen ? 'lg:pl-64' : 'lg:pl-[72px]'
+          } pl-0`}
+        >
+          <div className="px-3 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-[1600px] mx-auto">{children}</div>
+        </main>
+      </div>
+    </ExchangeRateProvider>
   );
 }

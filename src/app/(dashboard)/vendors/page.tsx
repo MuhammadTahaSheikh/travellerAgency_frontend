@@ -12,7 +12,7 @@ import { Vendor, Account, ApiResponse } from '@/types';
 import { uploadAttachment } from '@/lib/upload';
 import { LedgerTransactionTable, LedgerTransactionRow } from '@/components/ledger/LedgerTransactionTable';
 import { InternalTransferButton, InternalTransferModal } from '@/components/ledger/InternalTransferModal';
-import { Button } from '@/components/ui/Button';
+import { ExchangeRateInput } from '@/components/currency/ExchangeRateInput';
 import { Input, Select, SearchableSelect } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
 import { PageHeader, LoadingSpinner, formatCurrency, EmptyState } from '@/components/ui/Common';
@@ -157,7 +157,7 @@ export default function VendorsPage() {
               <SearchableSelect label="From Account" value={payForm.accountId} onChange={(v) => setPayForm({ ...payForm, accountId: v })} onSearch={searchPaymentAccounts} options={[{ value: '', label: 'Select' }]} />
               <Input label="Amount" type="number" value={payForm.amount} onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })} required />
               <Select label="Currency" value={payForm.currency} onChange={(e) => setPayForm({ ...payForm, currency: e.target.value })} options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]} />
-              <Input label="Exchange Rate" type="number" value={payForm.exchangeRate} onChange={(e) => setPayForm({ ...payForm, exchangeRate: e.target.value })} />
+              <ExchangeRateInput value={payForm.exchangeRate} onChange={(v) => setPayForm({ ...payForm, exchangeRate: v })} />
               <Input label="Notes" value={payForm.notes} onChange={(e) => setPayForm({ ...payForm, notes: e.target.value })} />
               <div><label className="block text-sm font-medium mb-1">Proof</label><input type="file" accept="image/*,.pdf" onChange={(e) => setPayFile(e.target.files?.[0] || null)} /></div>
               <div className="md:col-span-3 flex gap-2">

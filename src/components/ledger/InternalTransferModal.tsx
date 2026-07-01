@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ArrowRightLeft, X } from 'lucide-react';
 import api from '@/lib/api';
 import { searchB2BCustomers, searchVendors, mergeSelectedOption } from '@/lib/searchableOptions';
+import { ExchangeRateInput } from '@/components/currency/ExchangeRateInput';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, SearchableSelect, Textarea } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -175,12 +176,9 @@ export function InternalTransferModal({ open, onClose, onSuccess, prefill }: Int
               onChange={(e) => setForm({ ...form, currency: e.target.value as 'PKR' | 'SAR' })}
               options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]}
             />
-            <Input
-              label="Exchange Rate"
-              type="number"
-              step="0.0001"
+            <ExchangeRateInput
               value={form.exchangeRate}
-              onChange={(e) => setForm({ ...form, exchangeRate: e.target.value })}
+              onChange={(v) => setForm({ ...form, exchangeRate: v })}
             />
             <Input
               label="Date (optional)"
