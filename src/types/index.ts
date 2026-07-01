@@ -220,6 +220,8 @@ export interface LedgerAccountGroup {
   label: string;
   accounts: Account[];
   totalBalance: number;
+  totalBalancePkr?: number;
+  totalBalanceSar?: number;
 }
 
 export interface TrialBalanceRow {

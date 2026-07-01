@@ -62,9 +62,9 @@ export async function exportLedgerPdf(
         <td>${escapeHtml(row.journalEntry.entryNumber)}</td>
         ${accountCell}
         <td>${escapeHtml(row.description || row.journalEntry.description)}</td>
-        <td class="num">${Number(row.debit) > 0 ? escapeHtml(formatCurrency(row.debit)) : ''}</td>
-        <td class="num">${Number(row.credit) > 0 ? escapeHtml(formatCurrency(row.credit)) : ''}</td>
-        <td class="num">${balance != null ? escapeHtml(formatCurrency(balance)) : ''}</td>
+        <td class="num">${Number(row.debit) > 0 ? escapeHtml(formatCurrency(row.debit, currency)) : ''}</td>
+        <td class="num">${Number(row.credit) > 0 ? escapeHtml(formatCurrency(row.credit, currency)) : ''}</td>
+        <td class="num">${balance != null ? escapeHtml(formatCurrency(balance, currency)) : ''}</td>
       </tr>`;
     })
     .join('');

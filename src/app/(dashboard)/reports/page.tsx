@@ -343,7 +343,7 @@ export default function ReportsPage() {
                   <StatCard label="Total Billed" value={formatCurrency(((data.summary as { totalBilled: number })?.totalBilled) || 0)} variant="blue" />
                   <StatCard label="Total Paid" value={formatCurrency(((data.summary as { totalPaid: number })?.totalPaid) || 0)} variant="green" />
                   <StatCard label="Outstanding" value={formatCurrency(((data.summary as { outstanding: number })?.outstanding) || 0)} variant="amber" />
-                  <StatCard label={`Balance (${statementCurrency})`} value={formatCurrency(statementCurrency === 'SAR' ? ((data.summary as { balanceSar: number })?.balanceSar || 0) : ((data.summary as { balancePkr: number })?.balancePkr || 0))} variant="teal" />
+                  <StatCard label={`Balance (${statementCurrency})`} value={formatCurrency(statementCurrency === 'SAR' ? ((data.summary as { balanceSar: number })?.balanceSar || 0) : ((data.summary as { balancePkr: number })?.balancePkr || 0), statementCurrency)} variant="teal" />
                 </div>
                 <LedgerTransactionTable rows={((data.transactions as LedgerTransactionRow[]) || [])} currency={statementCurrency} />
               </div>

@@ -55,6 +55,12 @@ const emptyJournalForm = {
   notes: '',
 };
 
+function groupTotalBalance(group: LedgerAccountGroup, currency: 'PKR' | 'SAR') {
+  return currency === 'SAR'
+    ? Number(group.totalBalanceSar ?? 0)
+    : Number(group.totalBalancePkr ?? group.totalBalance);
+}
+
 const groupFilters: { id: AccountGroupKey; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'company', label: 'Company' },
@@ -98,7 +104,7 @@ function AccountCard({
             </div>
             <div className="text-right shrink-0">
               <p className={`text-lg sm:text-xl font-bold ${bal >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
-                {formatCurrency(bal)} <span className="text-xs font-normal">{currency}</span>
+                {formatCurrency(bal, currency)}
               </p>
             </div>
           </div>
@@ -147,7 +153,7 @@ function GroupSection({
           <p className="text-sm text-slate-600">
             Group total:{' '}
             <span className={`font-bold ${totalBalance >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
-              {formatCurrency(totalBalance)}
+              {formatCurrency(totalBalance, currency)}
             </span>
           </p>
         )}
@@ -172,7 +178,7 @@ function GroupSection({
   );
 }
 
-function TrialBalanceTable({ rows }: { rows: TrialBalanceRow[] }) {
+function TrialBalanceTable({ rows, currency }: { rows: TrialBalanceRow[]; currency: 'PKR' | 'SAR' }) {
   if (rows.length === 0) return null;
   return (
     <TableWrapper>
@@ -191,9 +197,9 @@ function TrialBalanceTable({ rows }: { rows: TrialBalanceRow[] }) {
             <TableRow key={acc.accountId}>
               <TableCell>{acc.accountName}</TableCell>
               <TableCell className="hidden sm:table-cell text-slate-500">{acc.accountCode}</TableCell>
-              <TableCell align="right">{formatCurrency(acc.debit)}</TableCell>
-              <TableCell align="right" className="hidden sm:table-cell">{formatCurrency(acc.credit)}</TableCell>
-              <TableCell align="right" className="font-semibold">{formatCurrency(acc.balance)}</TableCell>
+              <TableCell align="right">{formatCurrency(acc.debit, currency)}</TableCell>
+              <TableCell align="right" className="hidden sm:table-cell">{formatCurrency(acc.credit, currency)}</TableCell>
+              <TableCell align="right" className="font-semibold">{formatCurrency(acc.balance, currency)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -255,7 +261,7 @@ export default function LedgerPage() {
       api.get<ApiResponse<Account[]> & { grouped: Record<string, LedgerAccountGroup> }>('/ledger/accounts'),
       api.get<ApiResponse<JournalEntry[]>>(`/ledger/journal-entries${query}`),
       api.get<ApiResponse<LedgerTransactionRow[]> & { currency: string }>(`/ledger/general-ledger${query}`),
-      api.get<ApiResponse<typeof trialBalance>>('/ledger/trial-balance'),
+      api.get<ApiResponse<typeof trialBalance>>(`/ledger/trial-balance?currency=${cur}`),
       isSuperAdmin(user) ? api.get<ApiResponse<{ id: string; firstName: string; lastName: string }[]>>('/users?limit=100') : Promise.resolve({ data: [] }),
     ])
       .then(([accRes, jeRes, glRes, tbRes, usersRes]) => {
@@ -270,10 +276,10 @@ export default function LedgerPage() {
       .finally(() => setLoading(false));
   };
 
-  const viewAccountLedger = async (acc: Account) => {
+  const viewAccountLedger = async (acc: Account, viewCurrency: 'PKR' | 'SAR' = currency) => {
     try {
       const res = await api.get<ApiResponse<{ account: Account; transactions: LedgerTransactionRow[]; currency: string }>>(
-        `/ledger/accounts/${acc.id}/transactions?currency=${currency}`
+        `/ledger/accounts/${acc.id}/transactions?currency=${viewCurrency}`
       );
       setAccountDetail({ account: res.data!.account, transactions: res.data!.transactions || [] });
       setActiveTab('ledger');
@@ -487,6 +493,9 @@ export default function LedgerPage() {
             const cur = e.target.value as 'PKR' | 'SAR';
             setCurrency(cur);
             loadData(appliedDates, selectedAccountId, cur);
+            if (accountDetail?.account) {
+              viewAccountLedger(accountDetail.account, cur);
+            }
           }}
           options={[{ value: 'PKR', label: 'PKR (Pakistani Rupee)' }, { value: 'SAR', label: 'SAR (Saudi Riyal)' }]}
         />
@@ -600,7 +609,7 @@ export default function LedgerPage() {
                 <GroupSection
                   title={grouped.company.label}
                   accounts={grouped.company.accounts}
-                  totalBalance={grouped.company.totalBalance}
+                  totalBalance={groupTotalBalance(grouped.company, currency)}
                   currency={currency}
                   onViewAccount={viewAccountLedger}
                   canManageCompany={isSuperAdmin(user)}
@@ -610,21 +619,21 @@ export default function LedgerPage() {
                 <GroupSection
                   title={grouped.customers.label}
                   accounts={grouped.customers.accounts}
-                  totalBalance={grouped.customers.totalBalance}
+                  totalBalance={groupTotalBalance(grouped.customers, currency)}
                   currency={currency}
                   onViewAccount={viewAccountLedger}
                 />
                 <GroupSection
                   title={grouped.vendors.label}
                   accounts={grouped.vendors.accounts}
-                  totalBalance={grouped.vendors.totalBalance}
+                  totalBalance={groupTotalBalance(grouped.vendors, currency)}
                   currency={currency}
                   onViewAccount={viewAccountLedger}
                 />
                 <GroupSection
                   title={grouped.employees.label}
                   accounts={grouped.employees.accounts}
-                  totalBalance={grouped.employees.totalBalance}
+                  totalBalance={groupTotalBalance(grouped.employees, currency)}
                   currency={currency}
                   onViewAccount={viewAccountLedger}
                 />
@@ -797,9 +806,9 @@ export default function LedgerPage() {
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                   <h3 className="font-bold text-slate-900">Trial Balance</h3>
                   <div className="text-xs sm:text-sm text-slate-500">
-                    Debit: <span className="font-semibold text-slate-700">{formatCurrency(trialBalance.totalDebit)}</span>
+                    Debit: <span className="font-semibold text-slate-700">{formatCurrency(trialBalance.totalDebit, currency)}</span>
                     {' · '}
-                    Credit: <span className="font-semibold text-slate-700">{formatCurrency(trialBalance.totalCredit)}</span>
+                    Credit: <span className="font-semibold text-slate-700">{formatCurrency(trialBalance.totalCredit, currency)}</span>
                   </div>
                 </div>
               </CardHeader>
@@ -813,12 +822,12 @@ export default function LedgerPage() {
                         <h4 className="font-semibold text-slate-900 mb-3 pb-2 border-b border-slate-100">
                           {group.label}
                         </h4>
-                        <TrialBalanceTable rows={group.accounts} />
+                        <TrialBalanceTable rows={group.accounts} currency={currency} />
                       </div>
                     );
                   })
                 ) : (
-                  <TrialBalanceTable rows={trialBalance.accounts} />
+                  <TrialBalanceTable rows={trialBalance.accounts} currency={currency} />
                 )}
               </CardBody>
             </Card>

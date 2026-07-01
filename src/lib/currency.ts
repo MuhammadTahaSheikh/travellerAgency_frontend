@@ -26,18 +26,22 @@ export function getCurrencyLocale() {
   return locale;
 }
 
-export function formatCurrency(amount: number | string) {
+export function formatCurrency(amount: number | string, currencyOverride?: string) {
   const value = Number(amount);
   if (Number.isNaN(value)) return '—';
+  const code = currencyOverride ? currencyOverride.toUpperCase().trim() : currencyCode;
+  const formatLocale = currencyOverride
+    ? (CURRENCY_LOCALES[code] || locale)
+    : locale;
   try {
-    return new Intl.NumberFormat(locale, {
+    return new Intl.NumberFormat(formatLocale, {
       style: 'currency',
-      currency: currencyCode,
+      currency: code,
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
     }).format(value);
   } catch {
-    return `${currencyCode} ${value.toLocaleString()}`;
+    return `${code} ${value.toLocaleString()}`;
   }
 }
 

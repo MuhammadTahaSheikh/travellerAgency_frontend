@@ -62,9 +62,9 @@ export function LedgerTransactionTable({
                 <TableCell className="text-slate-500 whitespace-nowrap">{formatDate(t.journalEntry.date)}</TableCell>
                 <TableCell className="font-medium">{t.journalEntry.entryNumber}</TableCell>
                 <TableCell>{t.description || t.journalEntry.description}</TableCell>
-                <TableCell align="right">{Number(t.debit) > 0 ? formatCurrency(t.debit) : '—'}</TableCell>
-                <TableCell align="right">{Number(t.credit) > 0 ? formatCurrency(t.credit) : '—'}</TableCell>
-                <TableCell align="right" className="font-semibold">{balance != null ? formatCurrency(balance) : '—'}</TableCell>
+                <TableCell align="right">{Number(t.debit) > 0 ? formatCurrency(t.debit, currency) : '—'}</TableCell>
+                <TableCell align="right">{Number(t.credit) > 0 ? formatCurrency(t.credit, currency) : '—'}</TableCell>
+                <TableCell align="right" className="font-semibold">{balance != null ? formatCurrency(balance, currency) : '—'}</TableCell>
                 <TableCell className="hidden lg:table-cell text-xs">{t.currency || currency}</TableCell>
                 <TableCell className="hidden lg:table-cell text-xs">{t.exchangeRate ? Number(t.exchangeRate).toFixed(2) : '—'}</TableCell>
                 <TableCell className="hidden xl:table-cell text-sm">{t.bankAccount?.name || '—'}</TableCell>

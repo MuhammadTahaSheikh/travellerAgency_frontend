@@ -293,7 +293,7 @@ export default function CustomersPage() {
               <div className="p-3 bg-amber-50 rounded-lg"><p className="text-xs text-slate-500">Outstanding</p><p className="font-bold text-amber-700">{formatCurrency(ledger.summary.outstanding)}</p></div>
               <div className="p-3 bg-slate-50 rounded-lg">
                 <p className="text-xs text-slate-500">Ledger ({ledgerCurrency})</p>
-                <p className="font-bold">{formatCurrency(ledgerCurrency === 'SAR' ? (ledger.summary as { ledgerBalanceSar?: number }).ledgerBalanceSar || 0 : (ledger.summary as { ledgerBalancePkr?: number }).ledgerBalancePkr ?? ledger.summary.ledgerBalance)}</p>
+                <p className="font-bold">{formatCurrency(ledgerCurrency === 'SAR' ? (ledger.summary as { ledgerBalanceSar?: number }).ledgerBalanceSar || 0 : (ledger.summary as { ledgerBalancePkr?: number }).ledgerBalancePkr ?? ledger.summary.ledgerBalance, ledgerCurrency)}</p>
               </div>
             </div>
             <div className="mb-4 max-w-xs">
