@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Download, Plus } from 'lucide-react';
 import api from '@/lib/api';
+import { exportCheckInsCsv, exportCheckInsPdf } from '@/lib/checkInExport';
 import { buildQueryString } from '@/lib/query';
 import { searchCustomers, searchVendors, searchBookings } from '@/lib/searchableOptions';
 import { CheckInRecord, Booking, Customer, Vendor, ApiResponse } from '@/types';
@@ -91,13 +92,11 @@ export default function CheckInsPage() {
   };
 
   const handleExport = async (format: 'csv' | 'html') => {
-    const query = buildFilters();
-    const qs = query ? `${query}&format=${format}` : `?format=${format}`;
     try {
       if (format === 'html') {
-        await api.downloadPdfFromEndpoint(`/check-ins/export${qs}`, 'arrival-sheet.pdf');
+        await exportCheckInsPdf(checkIns, 'arrival-sheet.pdf');
       } else {
-        await api.downloadFile(`/check-ins/export${qs}`, 'arrival-sheet.csv');
+        exportCheckInsCsv(checkIns, 'arrival-sheet.csv');
       }
     } catch (err) {
       alert((err as Error).message);

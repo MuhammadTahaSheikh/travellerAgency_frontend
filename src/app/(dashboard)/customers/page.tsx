@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { Plus, Search, BookOpen, Download } from 'lucide-react';
 import api from '@/lib/api';
+import { exportLedgerCsv, exportLedgerPdf } from '@/lib/ledgerExport';
 import { RootState } from '@/store';
 import { Customer, CustomerLedger, ApiResponse } from '@/types';
 import { canCreateResource, canEditResource, canDeleteResource } from '@/lib/permissions';
@@ -111,16 +112,17 @@ export default function CustomersPage() {
   };
 
   const exportLedger = async (format: 'csv' | 'html') => {
-    if (!ledgerCustomerId) return;
-    const qs = `?currency=${ledgerCurrency}&format=${format}`;
+    if (!ledger) return;
+    const titleName = ledger.customer.customerType === 'B2B' && ledger.customer.companyName
+      ? ledger.customer.companyName
+      : `${ledger.customer.firstName} ${ledger.customer.lastName}`;
+    const title = `Customer Ledger — ${titleName}`;
+    const subtitle = ledger.customer.tradePartnerId || ledger.customer.phone || '';
     try {
       if (format === 'html') {
-        await api.downloadPdfFromEndpoint(
-          `/customers/${ledgerCustomerId}/ledger/export${qs}`,
-          'customer-ledger.pdf'
-        );
+        await exportLedgerPdf(title, subtitle, ledgerTx, ledgerCurrency, 'customer-ledger.pdf');
       } else {
-        await api.downloadFile(`/customers/${ledgerCustomerId}/ledger/export${qs}`, 'customer-ledger.csv');
+        exportLedgerCsv(ledgerTx, ledgerCurrency, 'customer-ledger.csv');
       }
     } catch (err) {
       alert((err as Error).message);

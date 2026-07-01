@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Wallet, BookOpen, Download } from 'lucide-react';
 import { searchPaymentAccounts } from '@/lib/searchableOptions';
 import api from '@/lib/api';
+import { exportLedgerCsv, exportLedgerPdf } from '@/lib/ledgerExport';
 import { Vendor, Account, ApiResponse } from '@/types';
 import { uploadAttachment } from '@/lib/upload';
 import { LedgerTransactionTable, LedgerTransactionRow } from '@/components/ledger/LedgerTransactionTable';
@@ -109,15 +110,13 @@ export default function VendorsPage() {
 
   const exportVendorLedgerFile = async (format: 'csv' | 'html') => {
     if (!vendorLedger) return;
-    const qs = `?currency=${ledgerCurrency}&format=${format}`;
+    const { vendor, transactions } = vendorLedger;
+    const title = `Vendor Ledger — ${vendor.name}`;
     try {
       if (format === 'html') {
-        await api.downloadPdfFromEndpoint(
-          `/vendors/${vendorLedger.vendor.id}/ledger/export${qs}`,
-          'vendor-ledger.pdf'
-        );
+        await exportLedgerPdf(title, vendor.category, transactions, ledgerCurrency, 'vendor-ledger.pdf');
       } else {
-        await api.downloadFile(`/vendors/${vendorLedger.vendor.id}/ledger/export${qs}`, 'vendor-ledger.csv');
+        exportLedgerCsv(transactions, ledgerCurrency, 'vendor-ledger.csv');
       }
     } catch (err) {
       alert((err as Error).message);

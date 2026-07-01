@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { Plus, Trash2, Download, ArrowRightLeft } from 'lucide-react';
 import api from '@/lib/api';
+import { exportLedgerCsv, exportLedgerPdf } from '@/lib/ledgerExport';
 import { searchLedgerAccounts } from '@/lib/searchableOptions';
 import { buildQueryString } from '@/lib/query';
 import { uploadAttachment } from '@/lib/upload';
@@ -283,22 +284,24 @@ export default function LedgerPage() {
   useEffect(() => { loadData(); }, []);
 
   const handleExportLedger = async (format: 'csv' | 'html') => {
-    const query = buildQueryString({
-      startDate: appliedDates.startDate,
-      endDate: appliedDates.endDate,
-      accountId: selectedAccountId || undefined,
-      currency,
-      format,
-    });
+    const rows = selectedAccountId
+      ? (accountDetail?.account.id === selectedAccountId ? accountDetail.transactions : ledgerTransactions)
+      : ledgerTransactions;
+    const includeAccount = !selectedAccountId;
+    const title = selectedAccountId && accountDetail?.account.id === selectedAccountId
+      ? `Ledger — ${accountDetail.account.name}`
+      : 'General Ledger';
+    const subtitle = selectedAccountId && accountDetail?.account.id === selectedAccountId
+      ? accountDetail.account.code
+      : `${currency} view`;
+    const csvName = selectedAccountId ? 'account-ledger.csv' : 'general-ledger.csv';
+    const pdfName = selectedAccountId ? 'account-ledger.pdf' : 'general-ledger.pdf';
+
     try {
-      const endpoint = selectedAccountId
-        ? `/ledger/accounts/${selectedAccountId}/transactions/export${query}`
-        : `/ledger/general-ledger/export${query}`;
       if (format === 'html') {
-        const pdfName = selectedAccountId ? 'account-ledger.pdf' : 'general-ledger.pdf';
-        await api.downloadPdfFromEndpoint(endpoint, pdfName);
+        await exportLedgerPdf(title, subtitle, rows, currency, pdfName, includeAccount);
       } else {
-        await api.downloadFile(endpoint, selectedAccountId ? 'account-ledger.csv' : 'general-ledger.csv');
+        exportLedgerCsv(rows, currency, csvName, includeAccount);
       }
     } catch (err) {
       alert((err as Error).message);
