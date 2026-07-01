@@ -4,7 +4,7 @@ const CURRENCY_LOCALES: Record<string, string> = {
   EUR: 'de-DE',
   GBP: 'en-GB',
   AED: 'en-AE',
-  SAR: 'en-SA',
+  SAR: 'en-US',
   TRY: 'tr-TR',
   INR: 'en-IN',
 };
@@ -26,22 +26,29 @@ export function getCurrencyLocale() {
   return locale;
 }
 
+function localeForCurrency(code: string, fallbackLocale: string) {
+  return CURRENCY_LOCALES[code] || fallbackLocale;
+}
+
 export function formatCurrency(amount: number | string, currencyOverride?: string) {
   const value = Number(amount);
   if (Number.isNaN(value)) return '—';
   const code = currencyOverride ? currencyOverride.toUpperCase().trim() : currencyCode;
   const formatLocale = currencyOverride
-    ? (CURRENCY_LOCALES[code] || locale)
+    ? localeForCurrency(code, locale)
     : locale;
+
   try {
+    // Force Western digits (1,2,3) — avoid Arabic numerals (١٢٣) and ر.س. in SAR view
     return new Intl.NumberFormat(formatLocale, {
       style: 'currency',
       currency: code,
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
+      numberingSystem: 'latn',
     }).format(value);
   } catch {
-    return `${code} ${value.toLocaleString()}`;
+    return `${code} ${value.toLocaleString('en-US', { numberingSystem: 'latn' })}`;
   }
 }
 
