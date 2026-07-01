@@ -69,9 +69,7 @@ export default function VouchersPage() {
 
   const openVoucher = async (id: string) => {
     try {
-      const html = await api.getHtml(`/vouchers/${id}/html`);
-      const blob = new Blob([html], { type: 'text/html' });
-      window.open(URL.createObjectURL(blob), '_blank');
+      await api.fetchAndOpenHtml(`/vouchers/${id}/html`);
     } catch (err) {
       alert((err as Error).message);
     }

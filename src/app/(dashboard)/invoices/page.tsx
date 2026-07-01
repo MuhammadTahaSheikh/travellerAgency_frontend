@@ -170,9 +170,7 @@ export default function InvoicesPage() {
 
   const handleView = async (inv: Invoice) => {
     try {
-      const html = await api.getHtml(`/invoices/${inv.id}/html`);
-      const blob = new Blob([html], { type: 'text/html' });
-      window.open(URL.createObjectURL(blob), '_blank');
+      await api.fetchAndOpenHtml(`/invoices/${inv.id}/html`);
     } catch (err) {
       alert((err as Error).message);
     }

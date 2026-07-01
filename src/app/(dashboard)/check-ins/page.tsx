@@ -95,8 +95,7 @@ export default function CheckInsPage() {
     const qs = query ? `${query}&format=${format}` : `?format=${format}`;
     try {
       if (format === 'html') {
-        const html = await api.getHtml(`/check-ins/export${qs}`);
-        api.openHtmlInNewTab(html);
+        await api.downloadPdfFromEndpoint(`/check-ins/export${qs}`, 'arrival-sheet.pdf');
       } else {
         await api.downloadFile(`/check-ins/export${qs}`, 'arrival-sheet.csv');
       }
@@ -128,7 +127,7 @@ export default function CheckInsPage() {
         action={
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => handleExport('csv')}><Download className="w-4 h-4 mr-2" />Excel (CSV)</Button>
-            <Button variant="secondary" onClick={() => handleExport('html')}><Download className="w-4 h-4 mr-2" />PDF (Print)</Button>
+            <Button variant="secondary" onClick={() => handleExport('html')}><Download className="w-4 h-4 mr-2" />PDF</Button>
             <Button onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-2" />Add Schedule</Button>
           </div>
         }

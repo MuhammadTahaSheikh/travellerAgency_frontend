@@ -115,8 +115,10 @@ export default function CustomersPage() {
     const qs = `?currency=${ledgerCurrency}&format=${format}`;
     try {
       if (format === 'html') {
-        const html = await api.getHtml(`/customers/${ledgerCustomerId}/ledger/export${qs}`);
-        api.openHtmlInNewTab(html);
+        await api.downloadPdfFromEndpoint(
+          `/customers/${ledgerCustomerId}/ledger/export${qs}`,
+          'customer-ledger.pdf'
+        );
       } else {
         await api.downloadFile(`/customers/${ledgerCustomerId}/ledger/export${qs}`, 'customer-ledger.csv');
       }

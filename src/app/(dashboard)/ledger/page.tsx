@@ -295,8 +295,8 @@ export default function LedgerPage() {
         ? `/ledger/accounts/${selectedAccountId}/transactions/export${query}`
         : `/ledger/general-ledger/export${query}`;
       if (format === 'html') {
-        const html = await api.getHtml(endpoint);
-        api.openHtmlInNewTab(html);
+        const pdfName = selectedAccountId ? 'account-ledger.pdf' : 'general-ledger.pdf';
+        await api.downloadPdfFromEndpoint(endpoint, pdfName);
       } else {
         await api.downloadFile(endpoint, selectedAccountId ? 'account-ledger.csv' : 'general-ledger.csv');
       }

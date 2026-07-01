@@ -112,8 +112,10 @@ export default function VendorsPage() {
     const qs = `?currency=${ledgerCurrency}&format=${format}`;
     try {
       if (format === 'html') {
-        const html = await api.getHtml(`/vendors/${vendorLedger.vendor.id}/ledger/export${qs}`);
-        api.openHtmlInNewTab(html);
+        await api.downloadPdfFromEndpoint(
+          `/vendors/${vendorLedger.vendor.id}/ledger/export${qs}`,
+          'vendor-ledger.pdf'
+        );
       } else {
         await api.downloadFile(`/vendors/${vendorLedger.vendor.id}/ledger/export${qs}`, 'vendor-ledger.csv');
       }

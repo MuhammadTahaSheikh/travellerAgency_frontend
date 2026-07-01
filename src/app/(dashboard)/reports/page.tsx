@@ -153,9 +153,11 @@ export default function ReportsPage() {
     }
     try {
       const query = buildQueryString({ customerId: statementCustomerId, currency: statementCurrency });
-      const html = await api.getHtml(`/reports/customer-statement/html${query}`);
-      const blob = new Blob([html], { type: 'text/html' });
-      window.open(URL.createObjectURL(blob), '_blank');
+      await api.downloadPdfFromEndpoint(
+        `/reports/customer-statement/html${query}`,
+        'customer-statement.pdf',
+        'portrait'
+      );
     } catch (err) {
       alert((err as Error).message);
     }

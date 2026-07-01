@@ -128,11 +128,54 @@ class ApiClient {
   }
 
   openHtmlInNewTab(html: string) {
-    const w = window.open('', '_blank');
-    if (w) {
-      w.document.write(html);
-      w.document.close();
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const popup = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!popup) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'document.html';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     }
+    window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
+  }
+
+  /** Open a tab immediately (before fetch) so pop-up blockers do not leave about:blank. */
+  async fetchAndOpenHtml(endpoint: string): Promise<void> {
+    const popup = window.open('about:blank', '_blank');
+    if (!popup) {
+      throw new Error('Pop-up was blocked. Please allow pop-ups for this site to view the document.');
+    }
+    popup.document.open();
+    popup.document.write(
+      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Loading…</title></head><body style="font-family:system-ui,sans-serif;padding:2rem;color:#334155">Loading document…</body></html>'
+    );
+    popup.document.close();
+
+    try {
+      const html = await this.getHtml(endpoint);
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      popup.location.replace(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
+    } catch (err) {
+      popup.close();
+      throw err;
+    }
+  }
+
+  /** Fetch HTML from API and download as a PDF file. */
+  async downloadPdfFromEndpoint(
+    endpoint: string,
+    filename: string,
+    orientation: 'portrait' | 'landscape' = 'landscape'
+  ): Promise<void> {
+    const html = await this.getHtml(endpoint);
+    const { downloadHtmlAsPdf } = await import('@/lib/pdfDownload');
+    await downloadHtmlAsPdf(html, { filename, orientation });
   }
 }
 
