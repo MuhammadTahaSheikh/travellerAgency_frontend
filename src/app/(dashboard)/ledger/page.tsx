@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Download, ArrowRightLeft } from 'lucide-react';
 import api from '@/lib/api';
 import { buildQueryString } from '@/lib/query';
 import { uploadAttachment } from '@/lib/upload';
 import { RootState } from '@/store';
-import { isAdminOrAbove } from '@/lib/permissions';
+import { isAdminOrAbove, isSuperAdmin } from '@/lib/permissions';
 import { Button } from '@/components/ui/Button';
-import { Input, Select, Textarea } from '@/components/ui/Input';
+import { Input, Select, SearchableSelect, Textarea } from '@/components/ui/Input';
 import { Account, ApiResponse, LedgerAccountGroup, TrialBalanceRow } from '@/types';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
@@ -60,7 +60,16 @@ const groupFilters: { id: AccountGroupKey; label: string }[] = [
   { id: 'employees', label: 'Employees' },
 ];
 
-function AccountCard({ acc, currency, onView }: { acc: Account; currency: 'PKR' | 'SAR'; onView?: () => void }) {
+function AccountCard({
+  acc, currency, onView, onEdit, onDeactivate, showManage,
+}: {
+  acc: Account;
+  currency: 'PKR' | 'SAR';
+  onView?: () => void;
+  onEdit?: () => void;
+  onDeactivate?: () => void;
+  showManage?: boolean;
+}) {
   const subtitle =
     acc.customer ? (acc.customer as { companyName?: string; firstName?: string; lastName?: string; tradePartnerId?: string }).tradePartnerId
       ? `${(acc.customer as { tradePartnerId?: string }).tradePartnerId}`
@@ -72,25 +81,37 @@ function AccountCard({ acc, currency, onView }: { acc: Account; currency: 'PKR' 
   const bal = currency === 'SAR' ? Number((acc as Account & { balanceSar?: number }).balanceSar || 0) : Number((acc as Account & { balancePkr?: number }).balancePkr ?? acc.balance);
 
   return (
-    <div className="hover:shadow-md transition-shadow cursor-pointer" onClick={onView} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onView?.()}>
-      <Card className="h-full">
-        <CardBody>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              {acc.type}
-            </span>
-            <h3 className="font-bold text-slate-900 mt-2 truncate">{acc.name}</h3>
-            <p className="text-xs text-slate-400 mt-0.5 truncate">{subtitle}</p>
+    <div className="relative">
+      <div className="hover:shadow-md transition-shadow cursor-pointer" onClick={onView} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onView?.()}>
+        <Card className="h-full">
+          <CardBody>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                {acc.type}
+              </span>
+              <h3 className="font-bold text-slate-900 mt-2 truncate">{acc.name}</h3>
+              <p className="text-xs text-slate-400 mt-0.5 truncate">{subtitle}</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className={`text-lg sm:text-xl font-bold ${bal >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
+                {formatCurrency(bal)} <span className="text-xs font-normal">{currency}</span>
+              </p>
+            </div>
           </div>
-          <div className="text-right shrink-0">
-            <p className={`text-lg sm:text-xl font-bold ${bal >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
-              {formatCurrency(bal)} <span className="text-xs font-normal">{currency}</span>
-            </p>
-          </div>
+          </CardBody>
+        </Card>
+      </div>
+      {showManage && (
+        <div className="absolute top-2 right-2 flex gap-1">
+          {onEdit && (
+            <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} className="text-xs text-teal-700 hover:text-teal-900 bg-white/90 px-2 py-1 rounded-lg border border-teal-100">Edit</button>
+          )}
+          {onDeactivate && (
+            <button type="button" onClick={(e) => { e.stopPropagation(); onDeactivate(); }} className="text-xs text-red-500 hover:text-red-700 bg-white/90 px-2 py-1 rounded-lg border border-red-100">Close</button>
+          )}
         </div>
-        </CardBody>
-      </Card>
+      )}
     </div>
   );
 }
@@ -101,12 +122,18 @@ function GroupSection({
   totalBalance,
   currency,
   onViewAccount,
+  canManageCompany,
+  onEditAccount,
+  onDeactivateAccount,
 }: {
   title: string;
   accounts: Account[];
   totalBalance?: number;
   currency: 'PKR' | 'SAR';
   onViewAccount: (acc: Account) => void;
+  canManageCompany?: boolean;
+  onEditAccount?: (acc: Account) => void;
+  onDeactivateAccount?: (acc: Account) => void;
 }) {
   if (accounts.length === 0) return null;
   return (
@@ -123,9 +150,20 @@ function GroupSection({
         )}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {accounts.map((acc) => (
-          <AccountCard key={acc.id} acc={acc} currency={currency} onView={() => onViewAccount(acc)} />
-        ))}
+        {accounts.map((acc) => {
+          const isCompanyCashBank = (acc.type === 'CASH' || acc.type === 'BANK') && !acc.customerId && !acc.vendorId;
+          return (
+            <AccountCard
+              key={acc.id}
+              acc={acc}
+              currency={currency}
+              onView={() => onViewAccount(acc)}
+              showManage={canManageCompany && isCompanyCashBank}
+              onEdit={onEditAccount ? () => onEditAccount(acc) : undefined}
+              onDeactivate={onDeactivateAccount ? () => onDeactivateAccount(acc) : undefined}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -188,6 +226,18 @@ export default function LedgerPage() {
   const [journalLines, setJournalLines] = useState<JournalLineForm[]>([emptyJournalLine(), emptyJournalLine()]);
   const [journalAttachment, setJournalAttachment] = useState<File | null>(null);
   const [journalSaving, setJournalSaving] = useState(false);
+  const [showTransferForm, setShowTransferForm] = useState(false);
+  const [transferSaving, setTransferSaving] = useState(false);
+  const [transferForm, setTransferForm] = useState({
+    fromAccountId: '', toAccountId: '', amount: '', currency: 'PKR' as 'PKR' | 'SAR',
+    exchangeRate: '75', description: '', date: '', reference: '',
+  });
+  const [showAccountForm, setShowAccountForm] = useState(false);
+  const [accountSaving, setAccountSaving] = useState(false);
+  const [accountForm, setAccountForm] = useState({ name: '', type: 'BANK' as 'CASH' | 'BANK', description: '', employeeId: '' });
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [editAccountForm, setEditAccountForm] = useState({ name: '', description: '', employeeId: '' });
+  const [users, setUsers] = useState<{ id: string; firstName: string; lastName: string }[]>([]);
 
   const loadData = (dates = appliedDates, accountId = selectedAccountId, cur = currency) => {
     setLoading(true);
@@ -202,13 +252,15 @@ export default function LedgerPage() {
       api.get<ApiResponse<JournalEntry[]>>(`/ledger/journal-entries${query}`),
       api.get<ApiResponse<LedgerTransactionRow[]> & { currency: string }>(`/ledger/general-ledger${query}`),
       api.get<ApiResponse<typeof trialBalance>>('/ledger/trial-balance'),
+      isSuperAdmin(user) ? api.get<ApiResponse<{ id: string; firstName: string; lastName: string }[]>>('/users?limit=100') : Promise.resolve({ data: [] }),
     ])
-      .then(([accRes, jeRes, glRes, tbRes]) => {
+      .then(([accRes, jeRes, glRes, tbRes, usersRes]) => {
         setAccounts(accRes.data || []);
         setGrouped(accRes.grouped || null);
         setJournalEntries(jeRes.data || []);
         setLedgerTransactions(glRes.data || []);
         setTrialBalance(tbRes.data || null);
+        if (usersRes?.data) setUsers(usersRes.data);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -241,6 +293,113 @@ export default function LedgerPage() {
     });
     return options;
   }, [grouped]);
+
+  const allAccountOptions = useMemo(
+    () => accounts.map((a) => ({ value: a.id, label: `${a.name} (${a.type})` })),
+    [accounts]
+  );
+
+  const handleExportLedger = async (format: 'csv' | 'html') => {
+    const query = buildQueryString({
+      startDate: appliedDates.startDate,
+      endDate: appliedDates.endDate,
+      accountId: selectedAccountId || undefined,
+      currency,
+      format,
+    });
+    try {
+      const endpoint = selectedAccountId
+        ? `/ledger/accounts/${selectedAccountId}/transactions/export${query}`
+        : `/ledger/general-ledger/export${query}`;
+      if (format === 'html') {
+        const html = await api.getHtml(endpoint);
+        api.openHtmlInNewTab(html);
+      } else {
+        await api.downloadFile(endpoint, selectedAccountId ? 'account-ledger.csv' : 'general-ledger.csv');
+      }
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
+  const handleTransferSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTransferSaving(true);
+    try {
+      await api.post('/ledger/transfers', {
+        ...transferForm,
+        amount: parseFloat(transferForm.amount),
+        exchangeRate: parseFloat(transferForm.exchangeRate) || undefined,
+        date: transferForm.date || undefined,
+      });
+      setShowTransferForm(false);
+      setTransferForm({ fromAccountId: '', toAccountId: '', amount: '', currency: 'PKR', exchangeRate: '75', description: '', date: '', reference: '' });
+      loadData();
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setTransferSaving(false);
+    }
+  };
+
+  const handleCreateAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAccountSaving(true);
+    try {
+      await api.post('/payments/accounts', {
+        ...accountForm,
+        employeeId: accountForm.employeeId || undefined,
+      });
+      setShowAccountForm(false);
+      setAccountForm({ name: '', type: 'BANK', description: '', employeeId: '' });
+      loadData();
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setAccountSaving(false);
+    }
+  };
+
+  const handleDeactivateAccount = async (acc: Account) => {
+    if (!confirm(`Deactivate account "${acc.name}"? It must have zero balance.`)) return;
+    try {
+      await api.delete(`/payments/accounts/${acc.id}`);
+      loadData();
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
+  const startEditAccount = (acc: Account) => {
+    setEditingAccount(acc);
+    setEditAccountForm({
+      name: acc.name,
+      description: (acc as Account & { description?: string }).description || '',
+      employeeId: (acc as Account & { employeeId?: string }).employeeId || '',
+    });
+    setShowAccountForm(false);
+  };
+
+  const handleUpdateAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAccount) return;
+    setAccountSaving(true);
+    try {
+      await api.put(`/payments/accounts/${editingAccount.id}`, {
+        ...editAccountForm,
+        employeeId: editAccountForm.employeeId || null,
+      });
+      setEditingAccount(null);
+      loadData();
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setAccountSaving(false);
+    }
+  };
+
+  const isCompanyCashBank = (acc: Account) =>
+    (acc.type === 'CASH' || acc.type === 'BANK') && !acc.customerId && !acc.vendorId;
 
   const filteredAccounts = useMemo(() => {
     if (accountGroup === 'all' || !grouped) return accounts;
@@ -357,19 +516,68 @@ export default function LedgerPage() {
             }}
           />
           {activeTab === 'ledger' && (
-            <div className="max-w-md">
-              <Select
-                label="Filter by account"
-                value={selectedAccountId}
-                onChange={(e) => handleAccountFilterChange(e.target.value)}
-                options={accountFilterOptions}
-              />
+            <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+              <div className="flex-1 max-w-md">
+                <SearchableSelect
+                  label="Filter by account"
+                  value={selectedAccountId}
+                  onChange={handleAccountFilterChange}
+                  options={accountFilterOptions}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => handleExportLedger('csv')}><Download className="w-4 h-4 mr-2" />Excel</Button>
+                <Button variant="secondary" onClick={() => handleExportLedger('html')}><Download className="w-4 h-4 mr-2" />PDF</Button>
+              </div>
             </div>
           )}
         </div>
       )}
 
       <TabGroup tabs={tabs} active={activeTab} onChange={(id) => setActiveTab(id as typeof activeTab)} />
+
+      {activeTab === 'accounts' && isSuperAdmin(user) && (
+        <div className="mb-4 mt-4 flex flex-wrap gap-2 justify-end">
+          <Button variant="secondary" onClick={() => setShowAccountForm(!showAccountForm)}>
+            <Plus className="w-4 h-4 mr-2" />Manage Cash / Bank Account
+          </Button>
+        </div>
+      )}
+
+      {editingAccount && isSuperAdmin(user) && (
+        <Card className="mb-6 mt-4">
+          <CardBody>
+            <h3 className="font-bold text-slate-900 mb-4">Edit Account — {editingAccount.name}</h3>
+            <form onSubmit={handleUpdateAccount} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Input label="Account Name" value={editAccountForm.name} onChange={(e) => setEditAccountForm({ ...editAccountForm, name: e.target.value })} required />
+              <SearchableSelect label="Assigned To (cash head)" value={editAccountForm.employeeId} onChange={(v) => setEditAccountForm({ ...editAccountForm, employeeId: v })} options={[{ value: '', label: 'None (shared)' }, ...users.map((u) => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))]} searchThreshold={99} />
+              <Input label="Description" value={editAccountForm.description} onChange={(e) => setEditAccountForm({ ...editAccountForm, description: e.target.value })} />
+              <div className="md:col-span-2 lg:col-span-4 flex gap-2">
+                <Button type="submit" loading={accountSaving}>Save Changes</Button>
+                <Button type="button" variant="secondary" onClick={() => setEditingAccount(null)}>Cancel</Button>
+              </div>
+            </form>
+          </CardBody>
+        </Card>
+      )}
+
+      {showAccountForm && isSuperAdmin(user) && (
+        <Card className="mb-6 mt-4">
+          <CardBody>
+            <h3 className="font-bold text-slate-900 mb-4">Add Company Account</h3>
+            <form onSubmit={handleCreateAccount} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Input label="Account Name" value={accountForm.name} onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })} required placeholder="e.g. Meezan Bank" />
+              <Select label="Type" value={accountForm.type} onChange={(e) => setAccountForm({ ...accountForm, type: e.target.value as 'CASH' | 'BANK' })} options={[{ value: 'BANK', label: 'Bank Account' }, { value: 'CASH', label: 'Cash Head' }]} />
+              <SearchableSelect label="Assigned To (cash head)" value={accountForm.employeeId} onChange={(v) => setAccountForm({ ...accountForm, employeeId: v })} options={[{ value: '', label: 'None (shared)' }, ...users.map((u) => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))]} searchThreshold={99} />
+              <Input label="Description" value={accountForm.description} onChange={(e) => setAccountForm({ ...accountForm, description: e.target.value })} />
+              <div className="md:col-span-2 lg:col-span-4 flex gap-2">
+                <Button type="submit" loading={accountSaving}>Create Account</Button>
+                <Button type="button" variant="secondary" onClick={() => setShowAccountForm(false)}>Cancel</Button>
+              </div>
+            </form>
+          </CardBody>
+        </Card>
+      )}
 
       {activeTab === 'accounts' && (
         <div className="flex flex-wrap gap-2 mb-4 mt-4">
@@ -403,6 +611,9 @@ export default function LedgerPage() {
                   totalBalance={grouped.company.totalBalance}
                   currency={currency}
                   onViewAccount={viewAccountLedger}
+                  canManageCompany={isSuperAdmin(user)}
+                  onEditAccount={startEditAccount}
+                  onDeactivateAccount={handleDeactivateAccount}
                 />
                 <GroupSection
                   title={grouped.customers.label}
@@ -429,7 +640,15 @@ export default function LedgerPage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filteredAccounts.map((acc) => (
-                  <AccountCard key={acc.id} acc={acc} currency={currency} onView={() => viewAccountLedger(acc)} />
+                  <AccountCard
+                    key={acc.id}
+                    acc={acc}
+                    currency={currency}
+                    onView={() => viewAccountLedger(acc)}
+                    showManage={isSuperAdmin(user) && isCompanyCashBank(acc)}
+                    onEdit={() => startEditAccount(acc)}
+                    onDeactivate={() => handleDeactivateAccount(acc)}
+                  />
                 ))}
               </div>
             )
@@ -438,11 +657,37 @@ export default function LedgerPage() {
           {activeTab === 'journal' && (
             <>
               {canManageJournal && (
-                <div className="mb-4 flex justify-end">
+                <div className="mb-4 flex flex-wrap gap-2 justify-end">
+                  <Button variant="secondary" onClick={() => setShowTransferForm(!showTransferForm)}>
+                    <ArrowRightLeft className="w-4 h-4 mr-2" />Ledger Transfer
+                  </Button>
                   <Button onClick={() => { resetJournalForm(); setShowJournalForm(true); }}>
                     <Plus className="w-4 h-4 mr-2" />New Journal Entry
                   </Button>
                 </div>
+              )}
+              {showTransferForm && canManageJournal && (
+                <Card className="mb-6">
+                  <CardBody>
+                    <h3 className="font-bold text-slate-900 mb-4">Transfer Between Ledgers</h3>
+                    <form onSubmit={handleTransferSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <SearchableSelect label="From Account" value={transferForm.fromAccountId} onChange={(v) => setTransferForm({ ...transferForm, fromAccountId: v })} options={[{ value: '', label: 'Select source' }, ...allAccountOptions]} />
+                      <SearchableSelect label="To Account" value={transferForm.toAccountId} onChange={(v) => setTransferForm({ ...transferForm, toAccountId: v })} options={[{ value: '', label: 'Select destination' }, ...allAccountOptions]} />
+                      <Select label="Currency" value={transferForm.currency} onChange={(e) => setTransferForm({ ...transferForm, currency: e.target.value as 'PKR' | 'SAR' })} options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]} />
+                      <Input label="Amount" type="number" value={transferForm.amount} onChange={(e) => setTransferForm({ ...transferForm, amount: e.target.value })} required />
+                      <Input label="Exchange Rate" type="number" value={transferForm.exchangeRate} onChange={(e) => setTransferForm({ ...transferForm, exchangeRate: e.target.value })} />
+                      <Input label="Date" type="date" value={transferForm.date} onChange={(e) => setTransferForm({ ...transferForm, date: e.target.value })} />
+                      <Input label="Reference" value={transferForm.reference} onChange={(e) => setTransferForm({ ...transferForm, reference: e.target.value })} />
+                      <div className="md:col-span-2">
+                        <Textarea label="Description" value={transferForm.description} onChange={(e) => setTransferForm({ ...transferForm, description: e.target.value })} rows={2} />
+                      </div>
+                      <div className="md:col-span-2 lg:col-span-3 flex gap-2">
+                        <Button type="submit" loading={transferSaving}>Transfer Balance</Button>
+                        <Button type="button" variant="secondary" onClick={() => setShowTransferForm(false)}>Cancel</Button>
+                      </div>
+                    </form>
+                  </CardBody>
+                </Card>
               )}
               {showJournalForm && (
                 <Card className="mb-6">
@@ -469,7 +714,7 @@ export default function LedgerPage() {
                             <button type="button" onClick={() => removeJournalLine(idx)} className="absolute top-2 right-2 text-red-500 hover:text-red-700" title="Remove line">
                               <Trash2 className="w-4 h-4" />
                             </button>
-                            <Select label="Account" value={line.accountId} onChange={(e) => updateJournalLine(idx, { accountId: e.target.value })} options={[{ value: '', label: 'Select account' }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]} required />
+                            <SearchableSelect label="Account" value={line.accountId} onChange={(v) => updateJournalLine(idx, { accountId: v })} options={[{ value: '', label: 'Select account' }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]} />
                             <Input label="Debit" type="number" value={line.debit} onChange={(e) => updateJournalLine(idx, { debit: e.target.value, credit: e.target.value ? '' : line.credit })} />
                             <Input label="Credit" type="number" value={line.credit} onChange={(e) => updateJournalLine(idx, { credit: e.target.value, debit: e.target.value ? '' : line.debit })} />
                             <Input label="Line note" value={line.description} onChange={(e) => updateJournalLine(idx, { description: e.target.value })} className="md:col-span-2" />
@@ -530,9 +775,15 @@ export default function LedgerPage() {
             <Card>
               <CardBody className="p-0 sm:p-0">
                 {accountDetail && (
-                  <div className="p-4 border-b border-slate-100 bg-slate-50">
-                    <h3 className="font-bold">{accountDetail.account.name}</h3>
-                    <p className="text-sm text-slate-500">Account ledger — {currency} view</p>
+                  <div className="p-4 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <h3 className="font-bold">{accountDetail.account.name}</h3>
+                      <p className="text-sm text-slate-500">Account ledger — {currency} view</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="secondary" size="sm" onClick={() => handleExportLedger('csv')}><Download className="w-4 h-4 mr-1" />Excel</Button>
+                      <Button variant="secondary" size="sm" onClick={() => handleExportLedger('html')}><Download className="w-4 h-4 mr-1" />PDF</Button>
+                    </div>
                   </div>
                 )}
                 {(accountDetail?.transactions.length || ledgerTransactions.length) === 0 ? (

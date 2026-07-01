@@ -10,7 +10,7 @@ import { RootState } from '@/store';
 import { Invoice, Account, Payment, ApiResponse } from '@/types';
 import { canDeleteResource } from '@/lib/permissions';
 import { Button } from '@/components/ui/Button';
-import { Input, Select } from '@/components/ui/Input';
+import { Input, Select, SearchableSelect } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
 import { PageHeader, LoadingSpinner, formatCurrency, formatDate, EmptyState } from '@/components/ui/Common';
@@ -43,7 +43,7 @@ export default function PaymentsPage() {
     const query = buildQueryString({ startDate: dates.startDate, endDate: dates.endDate });
     Promise.allSettled([
       api.get<ApiResponse<PaymentRow[]>>(`/payments${query}`),
-      api.get<ApiResponse<Invoice[]>>('/invoices'),
+      api.get<ApiResponse<Invoice[]>>('/invoices?limit=200'),
       api.get<ApiResponse<Account[]>>('/payments/accounts'),
     ])
       .then(([payRes, invRes, accRes]) => {
@@ -145,8 +145,8 @@ export default function PaymentsPage() {
         <Card className="mb-6">
           <CardBody>
             <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Select label="Invoice (optional)" value={form.invoiceId} onChange={(e) => setForm({ ...form, invoiceId: e.target.value })} options={[{ value: '', label: 'No invoice' }, ...invoices.map((i) => ({ value: i.id, label: `${i.invoiceNumber} - ${formatCurrency(i.totalAmount)}` }))]} />
-              <Select label="Account" value={form.accountId} onChange={(e) => setForm({ ...form, accountId: e.target.value })} options={[{ value: '', label: 'Select account' }, ...accounts.map((a) => ({ value: a.id, label: `${a.name} (${a.type})` }))]} required />
+              <SearchableSelect label="Invoice (optional)" value={form.invoiceId} onChange={(v) => setForm({ ...form, invoiceId: v })} options={[{ value: '', label: 'No invoice' }, ...invoices.map((i) => ({ value: i.id, label: `${i.invoiceNumber} - ${formatCurrency(i.totalAmount)}` }))]} />
+              <SearchableSelect label="Account" value={form.accountId} onChange={(v) => setForm({ ...form, accountId: v })} options={[{ value: '', label: 'Select account' }, ...accounts.map((a) => ({ value: a.id, label: `${a.name} (${a.type})` }))]} />
               <Input label="Amount" type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required />
               <Select label="Currency" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]} />
               <Input label="Exchange Rate (PKR per SAR)" type="number" value={form.exchangeRate} onChange={(e) => setForm({ ...form, exchangeRate: e.target.value })} />

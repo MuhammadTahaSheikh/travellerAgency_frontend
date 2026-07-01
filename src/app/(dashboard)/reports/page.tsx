@@ -6,7 +6,7 @@ import api from '@/lib/api';
 import { buildQueryString } from '@/lib/query';
 import { ApiResponse, Customer } from '@/types';
 import { LedgerTransactionTable, LedgerTransactionRow } from '@/components/ledger/LedgerTransactionTable';
-import { Select } from '@/components/ui/Input';
+import { Select, SearchableSelect } from '@/components/ui/Input';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
 import { PageHeader, LoadingSpinner, formatCurrency, formatDate, TabGroup, EmptyState } from '@/components/ui/Common';
@@ -103,7 +103,7 @@ export default function ReportsPage() {
   const [statementCurrency, setStatementCurrency] = useState<'PKR' | 'SAR'>('PKR');
 
   useEffect(() => {
-    api.get<ApiResponse<Customer[]>>('/customers').then((res) => setCustomers(res.data || [])).catch(console.error);
+    api.get<ApiResponse<Customer[]>>('/customers?limit=200').then((res) => setCustomers(res.data || [])).catch(console.error);
   }, []);
 
   const loadReport = (reportId: string, dates = appliedDates) => {
@@ -181,10 +181,10 @@ export default function ReportsPage() {
 
       {activeReport === 'customer-statement' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 max-w-2xl">
-          <Select
+          <SearchableSelect
             label="Customer"
             value={statementCustomerId}
-            onChange={(e) => setStatementCustomerId(e.target.value)}
+            onChange={setStatementCustomerId}
             options={[{ value: '', label: 'Select customer' }, ...customers.map((c) => ({
               value: c.id,
               label: c.customerType === 'B2B' ? `${c.companyName} (${c.tradePartnerId || 'B2B'})` : `${c.firstName} ${c.lastName}`,

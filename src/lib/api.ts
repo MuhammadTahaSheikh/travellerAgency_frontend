@@ -111,6 +111,29 @@ class ApiClient {
     if (!response.ok) throw new Error('Failed to load document');
     return response.text();
   }
+
+  async downloadFile(endpoint: string, filename: string): Promise<void> {
+    const token = this.getToken();
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) throw new Error('Download failed');
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  openHtmlInNewTab(html: string) {
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+    }
+  }
 }
 
 export const api = new ApiClient();

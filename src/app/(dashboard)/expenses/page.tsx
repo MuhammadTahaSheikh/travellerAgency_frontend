@@ -10,7 +10,7 @@ import { RootState } from '@/store';
 import { Account, Vendor, ApiResponse } from '@/types';
 import { canCreateResource, canEditResource, canDeleteResource } from '@/lib/permissions';
 import { Button } from '@/components/ui/Button';
-import { Input, Select, Textarea } from '@/components/ui/Input';
+import { Input, Select, SearchableSelect, Textarea } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
 import { PageHeader, LoadingSpinner, formatCurrency, formatDate, EmptyState } from '@/components/ui/Common';
@@ -22,10 +22,18 @@ interface Expense {
   expenseNumber: string;
   category: string;
   amount: number;
+  currency?: 'PKR' | 'SAR';
+  amountPkr?: number;
+  amountSar?: number;
   description: string;
   vendor?: string;
   expenseDate: string;
 }
+
+const emptyForm = {
+  category: 'OFFICE', accountId: '', amount: '', currency: 'PKR' as 'PKR' | 'SAR',
+  exchangeRate: '75', description: '', vendor: '', vendorId: '', expenseDate: '',
+};
 
 const expenseCategories = [
   { value: 'AIRLINE', label: 'Airline Payment' },
@@ -36,8 +44,6 @@ const expenseCategories = [
   { value: 'MARKETING', label: 'Marketing' },
   { value: 'OTHER', label: 'Other' },
 ];
-
-const emptyForm = { category: 'OFFICE', accountId: '', amount: '', description: '', vendor: '', vendorId: '', expenseDate: '' };
 
 export default function ExpensesPage() {
   const user = useSelector((state: RootState) => state.auth.user);
@@ -64,7 +70,7 @@ export default function ExpensesPage() {
     Promise.allSettled([
       api.get<ApiResponse<Expense[]>>(`/expenses${query}`),
       api.get<ApiResponse<Account[]>>('/payments/accounts'),
-      api.get<ApiResponse<Vendor[]>>('/vendors'),
+      api.get<ApiResponse<Vendor[]>>('/vendors?limit=200'),
     ])
       .then(([expRes, accRes, venRes]) => {
         if (expRes.status === 'fulfilled') {
@@ -109,6 +115,8 @@ export default function ExpensesPage() {
       category: e.category,
       accountId: '',
       amount: String(e.amount),
+      currency: e.currency || 'PKR',
+      exchangeRate: '75',
       description: e.description,
       vendor: e.vendor || '',
       vendorId: '',
@@ -131,7 +139,12 @@ export default function ExpensesPage() {
       } else {
         let receiptPath: string | undefined;
         if (attachmentFile) receiptPath = await uploadAttachment(attachmentFile);
-        await api.post('/expenses', { ...form, amount: parseFloat(form.amount), receiptPath });
+        await api.post('/expenses', {
+          ...form,
+          amount: parseFloat(form.amount),
+          exchangeRate: parseFloat(form.exchangeRate) || undefined,
+          receiptPath,
+        });
       }
       resetForm();
       loadData();
@@ -193,15 +206,17 @@ export default function ExpensesPage() {
               <Select label="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} options={expenseCategories} />
               {!editingId && (
                 <>
-                  <Select label="Account" value={form.accountId} onChange={(e) => setForm({ ...form, accountId: e.target.value })} options={[{ value: '', label: 'Select account' }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]} required />
+                  <SearchableSelect label="Account" value={form.accountId} onChange={(v) => setForm({ ...form, accountId: v })} options={[{ value: '', label: 'Select account' }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]} />
+                  <Select label="Currency" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value as 'PKR' | 'SAR' })} options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]} />
                   <Input label="Amount" type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required />
+                  <Input label="Exchange Rate (PKR/SAR)" type="number" value={form.exchangeRate} onChange={(e) => setForm({ ...form, exchangeRate: e.target.value })} hint="Used when currency is SAR or for dual-currency ledger posting" />
                 </>
               )}
               {editingId && (
                 <Input label="Amount (read-only)" type="number" value={form.amount} disabled />
               )}
               <Input label="Expense Date" type="date" value={form.expenseDate} onChange={(e) => setForm({ ...form, expenseDate: e.target.value })} />
-              <Select label="Vendor Account" value={form.vendorId} onChange={(e) => setForm({ ...form, vendorId: e.target.value })} options={[{ value: '', label: 'General expense pool' }, ...vendors.map((v) => ({ value: v.id, label: `${v.name} (${v.category})` }))]} />
+              <SearchableSelect label="Vendor Account" value={form.vendorId} onChange={(v) => setForm({ ...form, vendorId: v })} options={[{ value: '', label: 'General expense pool' }, ...vendors.map((v) => ({ value: v.id, label: `${v.name} (${v.category})` }))]} />
               <Input label="Vendor (text)" value={form.vendor} onChange={(e) => setForm({ ...form, vendor: e.target.value })} />
               <div className="md:col-span-2">
                 <Textarea label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required rows={2} />
@@ -245,7 +260,12 @@ export default function ExpensesPage() {
                         <TableCell className="font-semibold text-slate-900">{e.expenseNumber}</TableCell>
                         <TableCell className="capitalize">{e.category.replace('_', ' ').toLowerCase()}</TableCell>
                         <TableCell className="hidden md:table-cell max-w-xs truncate">{e.description}</TableCell>
-                        <TableCell className="font-medium text-red-600">{formatCurrency(e.amount)}</TableCell>
+                        <TableCell className="font-medium text-red-600">
+                          {formatCurrency(e.amount)} {e.currency || 'PKR'}
+                          {e.currency === 'SAR' && e.amountPkr ? (
+                            <span className="block text-xs text-slate-400">≈ {formatCurrency(e.amountPkr)} PKR</span>
+                          ) : null}
+                        </TableCell>
                         <TableCell className="text-slate-500">{formatDate(e.expenseDate)}</TableCell>
                         <TableCell align="right">
                           <RowActions

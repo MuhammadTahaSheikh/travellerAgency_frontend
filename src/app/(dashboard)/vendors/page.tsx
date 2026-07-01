@@ -7,7 +7,7 @@ import { Vendor, Account, ApiResponse } from '@/types';
 import { uploadAttachment } from '@/lib/upload';
 import { LedgerTransactionTable, LedgerTransactionRow } from '@/components/ledger/LedgerTransactionTable';
 import { Button } from '@/components/ui/Button';
-import { Input, Select } from '@/components/ui/Input';
+import { Input, Select, SearchableSelect } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
 import { PageHeader, LoadingSpinner, formatCurrency, EmptyState } from '@/components/ui/Common';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
@@ -43,7 +43,7 @@ export default function VendorsPage() {
     setLoading(true);
     setLoadError('');
     Promise.allSettled([
-      api.get<ApiResponse<Vendor[]>>('/vendors'),
+      api.get<ApiResponse<Vendor[]>>('/vendors?limit=200'),
       api.get<ApiResponse<typeof payables>>('/vendors/payables'),
       api.get<ApiResponse<Account[]>>('/payments/accounts'),
     ])
@@ -123,7 +123,7 @@ export default function VendorsPage() {
           <CardBody>
             <h3 className="font-bold mb-4">Pay Vendor — {payVendor.name}</h3>
             <form onSubmit={handlePayVendor} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Select label="From Account" value={payForm.accountId} onChange={(e) => setPayForm({ ...payForm, accountId: e.target.value })} options={[{ value: '', label: 'Select' }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]} required />
+              <SearchableSelect label="From Account" value={payForm.accountId} onChange={(v) => setPayForm({ ...payForm, accountId: v })} options={[{ value: '', label: 'Select' }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]} />
               <Input label="Amount" type="number" value={payForm.amount} onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })} required />
               <Select label="Currency" value={payForm.currency} onChange={(e) => setPayForm({ ...payForm, currency: e.target.value })} options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]} />
               <Input label="Exchange Rate" type="number" value={payForm.exchangeRate} onChange={(e) => setPayForm({ ...payForm, exchangeRate: e.target.value })} />

@@ -10,7 +10,7 @@ import { Invoice, Customer, Vendor, ApiResponse } from '@/types';
 import { canCreateResource, canEditResource, canDeleteResource } from '@/lib/permissions';
 import { shareInvoiceViaWhatsApp } from '@/lib/whatsapp';
 import { Button } from '@/components/ui/Button';
-import { Input, Select } from '@/components/ui/Input';
+import { Input, Select, SearchableSelect } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
 import { PageHeader, LoadingSpinner, Badge, formatCurrency, formatDate, EmptyState } from '@/components/ui/Common';
@@ -57,8 +57,8 @@ export default function InvoicesPage() {
     const query = buildQueryString({ startDate: dates.startDate, endDate: dates.endDate });
     Promise.all([
       api.get<ApiResponse<Invoice[]>>(`/invoices${query}`),
-      api.get<ApiResponse<Customer[]>>('/customers'),
-      api.get<ApiResponse<Vendor[]>>('/vendors'),
+      api.get<ApiResponse<Customer[]>>('/customers?limit=200'),
+      api.get<ApiResponse<Vendor[]>>('/vendors?limit=200'),
     ])
       .then(([invRes, custRes, vendRes]) => {
         setInvoices(invRes.data || []);
@@ -213,7 +213,7 @@ export default function InvoicesPage() {
             <h3 className="font-bold text-slate-900 mb-4">{editingId ? 'Edit Invoice' : 'New Invoice'}</h3>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <Select label="Customer" value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })} options={[{ value: '', label: 'Select customer' }, ...customers.map((c) => ({ value: c.id, label: c.customerType === 'B2B' ? `${c.companyName} (${c.tradePartnerId || 'B2B'})` : `${c.firstName} ${c.lastName}` }))]} required />
+                <SearchableSelect label="Customer" value={form.customerId} onChange={(v) => setForm({ ...form, customerId: v })} options={[{ value: '', label: 'Select customer' }, ...customers.map((c) => ({ value: c.id, label: c.customerType === 'B2B' ? `${c.companyName} (${c.tradePartnerId || 'B2B'})` : `${c.firstName} ${c.lastName}` }))]} />
                 <Input label="Tax" type="number" value={form.tax} onChange={(e) => setForm({ ...form, tax: e.target.value })} />
                 <Input label="Discount" type="number" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} />
                 <Input label="Due Date" type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} required />
@@ -238,7 +238,7 @@ export default function InvoicesPage() {
                         <Input label="Unit Price" type="number" value={item.unitPrice} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, unitPrice: e.target.value }; setLineItems(next); }} />
                         <Input label="Qty" type="number" value={String(item.quantity)} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, quantity: parseInt(e.target.value) || 1 }; setLineItems(next); }} />
                         <Input label="Est. Cost" type="number" value={item.costAmount} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, costAmount: e.target.value }; setLineItems(next); }} />
-                        <Select label="Vendor" value={item.vendorId} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, vendorId: e.target.value }; setLineItems(next); }} options={[{ value: '', label: 'None' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))]} />
+                        <SearchableSelect label="Vendor" value={item.vendorId} onChange={(v) => { const next = [...lineItems]; next[idx] = { ...item, vendorId: v }; setLineItems(next); }} options={[{ value: '', label: 'None' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))]} />
                         <Input label="Due Date" type="date" value={item.dueDate} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, dueDate: e.target.value }; setLineItems(next); }} />
                         <Select label="Vendor Post" value={item.postingType} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, postingType: e.target.value as 'INSTANT' | 'PENDING' }; setLineItems(next); }} options={[{ value: 'PENDING', label: 'Pending' }, { value: 'INSTANT', label: 'Instant' }]} />
                       </div>

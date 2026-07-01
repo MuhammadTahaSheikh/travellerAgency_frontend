@@ -10,7 +10,7 @@ import { Booking, Customer, Package, Vendor, BookingServiceItem, Invoice, ApiRes
 import { canCreateResource, canEditResource, canDeleteResource } from '@/lib/permissions';
 import { shareInvoiceViaWhatsApp } from '@/lib/whatsapp';
 import { Button } from '@/components/ui/Button';
-import { Input, Select, Textarea } from '@/components/ui/Input';
+import { Input, Select, SearchableSelect, Textarea } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
 import { PageHeader, LoadingSpinner, Badge, formatCurrency, formatDate, EmptyState } from '@/components/ui/Common';
@@ -59,9 +59,9 @@ export default function BookingsPage() {
     const query = buildQueryString({ startDate: dates.startDate, endDate: dates.endDate });
     Promise.allSettled([
       api.get<ApiResponse<Booking[]>>(`/bookings${query}`),
-      api.get<ApiResponse<Customer[]>>('/customers'),
-      api.get<ApiResponse<Package[]>>('/packages'),
-      api.get<ApiResponse<Vendor[]>>('/vendors'),
+      api.get<ApiResponse<Customer[]>>('/customers?limit=200'),
+      api.get<ApiResponse<Package[]>>('/packages?limit=200'),
+      api.get<ApiResponse<Vendor[]>>('/vendors?limit=200'),
     ])
       .then(([bookingsRes, customersRes, packagesRes, vendorsRes]) => {
         if (bookingsRes.status === 'fulfilled') setBookings(bookingsRes.value.data || []);
@@ -222,8 +222,8 @@ export default function BookingsPage() {
             <h3 className="font-bold text-slate-900 mb-4">{editingId ? 'Edit Booking' : 'New Booking'}</h3>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <Select label="Customer" value={form.customerId} onChange={(e) => updateForm({ customerId: e.target.value })} options={[{ value: '', label: 'Select customer' }, ...customers.map((c) => ({ value: c.id, label: `${c.firstName} ${c.lastName}` }))]} required />
-                <Select label="Package (optional)" value={form.packageId} onChange={(e) => updateForm({ packageId: e.target.value })} options={[{ value: '', label: 'No package' }, ...packages.map((p) => ({ value: p.id, label: `${p.name} (${formatCurrency(p.price)}/person)` }))]} />
+                <SearchableSelect label="Customer" value={form.customerId} onChange={(v) => updateForm({ customerId: v })} options={[{ value: '', label: 'Select customer' }, ...customers.map((c) => ({ value: c.id, label: c.customerType === 'B2B' && c.companyName ? `${c.companyName} (${c.tradePartnerId || 'B2B'})` : `${c.firstName} ${c.lastName}` }))]} />
+                <SearchableSelect label="Package (optional)" value={form.packageId} onChange={(v) => updateForm({ packageId: v })} options={[{ value: '', label: 'No package' }, ...packages.map((p) => ({ value: p.id, label: `${p.name} (${formatCurrency(p.price)}/person)` }))]} />
                 <Input label="Total Amount" type="number" value={form.totalAmount} onChange={(e) => setForm({ ...form, totalAmount: e.target.value })} required />
                 <Input label="Travelers" type="number" min={1} value={form.numTravelers} onChange={(e) => updateForm({ numTravelers: e.target.value })} />
                 <Input label="Travel Date" type="date" value={form.travelDate} onChange={(e) => updateForm({ travelDate: e.target.value })} />
@@ -260,7 +260,7 @@ export default function BookingsPage() {
                           <Input label="Description" value={item.description} onChange={(e) => updateServiceItem(idx, { description: e.target.value })} placeholder="e.g. Dubai Flight" />
                           <Input label="Selling Price" type="number" value={String(item.amount)} onChange={(e) => updateServiceItem(idx, { amount: parseFloat(e.target.value) || 0 })} />
                           <Input label="Vendor Cost" type="number" value={String(item.costAmount || 0)} onChange={(e) => updateServiceItem(idx, { costAmount: parseFloat(e.target.value) || 0 })} />
-                          <Select label="Vendor" value={item.vendorId || ''} onChange={(e) => updateServiceItem(idx, { vendorId: e.target.value })} options={[{ value: '', label: 'Auto-assign' }, ...vendorsForType(item.serviceType).map((v) => ({ value: v.id, label: v.name }))]} />
+                          <SearchableSelect label="Vendor" value={item.vendorId || ''} onChange={(v) => updateServiceItem(idx, { vendorId: v })} options={[{ value: '', label: 'Auto-assign' }, ...vendorsForType(item.serviceType).map((v) => ({ value: v.id, label: v.name }))]} />
 
                           {item.serviceType === 'TICKET' && (
                             <>
