@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { Plus, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
@@ -85,6 +85,7 @@ export default function BookingsPage() {
   const [endDate, setEndDate] = useState('');
   const [appliedDates, setAppliedDates] = useState({ startDate: '', endDate: '' });
   const [loadError, setLoadError] = useState('');
+  const formRef = useRef<HTMLDivElement>(null);
 
   const loadData = (dates = appliedDates) => {
     setLoading(true);
@@ -110,6 +111,19 @@ export default function BookingsPage() {
     setEditingId(null);
     setShowForm(false);
   };
+
+  const openNewBookingForm = () => {
+    setForm(emptyForm);
+    setSelectedCustomerLabel('');
+    setEditingId(null);
+    setShowForm(true);
+  };
+
+  useEffect(() => {
+    if (showForm) {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [showForm]);
 
   const currencySuffix = (label: string) => `${label} (${form.currency})`;
 
@@ -313,7 +327,7 @@ export default function BookingsPage() {
         title="Booking Management"
         subtitle="Create bookings with ticket, visa, accommodation, and transport services"
         action={canCreateResource(user, 'bookings') ? (
-          <Button onClick={() => { resetForm(); setShowForm(true); }}><Plus className="w-4 h-4 mr-2" />New Booking</Button>
+          <Button type="button" onClick={openNewBookingForm}><Plus className="w-4 h-4 mr-2" />New Booking</Button>
         ) : undefined}
       />
 
@@ -321,17 +335,8 @@ export default function BookingsPage() {
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{loadError}</div>
       )}
 
-      <DateRangeFilter
-        startDate={startDate}
-        endDate={endDate}
-        onStartDateChange={setStartDate}
-        onEndDateChange={setEndDate}
-        onApply={() => { const d = { startDate, endDate }; setAppliedDates(d); loadData(d); }}
-        onClear={() => { setStartDate(''); setEndDate(''); setAppliedDates({ startDate: '', endDate: '' }); loadData({ startDate: '', endDate: '' }); }}
-        summary={{ count: bookings.length, label: 'Bookings' }}
-      />
-
       {showForm && (
+        <div ref={formRef} className="scroll-mt-24">
         <Card className="mb-6">
           <CardBody>
             <h3 className="font-bold text-slate-900 mb-4">{editingId ? 'Edit Booking' : 'New Booking'}</h3>
@@ -525,7 +530,18 @@ export default function BookingsPage() {
             </form>
           </CardBody>
         </Card>
+        </div>
       )}
+
+      <DateRangeFilter
+        startDate={startDate}
+        endDate={endDate}
+        onStartDateChange={setStartDate}
+        onEndDateChange={setEndDate}
+        onApply={() => { const d = { startDate, endDate }; setAppliedDates(d); loadData(d); }}
+        onClear={() => { setStartDate(''); setEndDate(''); setAppliedDates({ startDate: '', endDate: '' }); loadData({ startDate: '', endDate: '' }); }}
+        summary={{ count: bookings.length, label: 'Bookings' }}
+      />
 
       {loading ? <LoadingSpinner label="Loading bookings..." /> : (
         <Card>
