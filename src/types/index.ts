@@ -46,6 +46,8 @@ export interface Package {
   destinations?: { id: string; destination: string; country?: string; nights: number }[];
 }
 
+export type ServiceRow = Record<string, string>;
+
 export interface BookingServiceItem {
   id?: string;
   serviceType: 'PACKAGE' | 'TICKET' | 'VISA' | 'HOTEL' | 'TRANSPORT';
@@ -55,7 +57,12 @@ export interface BookingServiceItem {
   vendorId?: string;
   vendor?: Vendor;
   details?: Record<string, string>;
+  /** Repeatable rows for multi-entry services (hotel rooms, transport sectors). */
+  rows?: ServiceRow[];
 }
+
+export type BookingType = 'B2B' | 'B2C';
+export type PriceMode = 'DETERMINED' | 'BREAKDOWN';
 
 export interface Vendor {
   id: string;
@@ -71,10 +78,20 @@ export interface Booking {
   id: string;
   bookingNumber: string;
   status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+  bookingType?: BookingType;
+  guestName?: string;
+  currency?: 'PKR' | 'SAR';
+  priceMode?: PriceMode;
   totalAmount: number;
   paidAmount: number;
   discount: number;
   numTravelers: number;
+  adults?: number;
+  children?: number;
+  infants?: number;
+  priceAdult?: number;
+  priceChild?: number;
+  priceInfant?: number;
   travelDate?: string;
   returnDate?: string;
   notes?: string;

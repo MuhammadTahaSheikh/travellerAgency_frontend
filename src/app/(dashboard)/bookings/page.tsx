@@ -4,10 +4,19 @@ import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { Plus, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
-import { searchCustomers, searchPackages, searchVendors } from '@/lib/searchableOptions';
+import { searchB2BCustomers, searchPackages, searchVendors } from '@/lib/searchableOptions';
 import { buildQueryString } from '@/lib/query';
 import { RootState } from '@/store';
-import { Booking, Customer, Package, Vendor, BookingServiceItem, Invoice, ApiResponse } from '@/types';
+import {
+  Booking,
+  Vendor,
+  BookingServiceItem,
+  BookingType,
+  PriceMode,
+  ServiceRow,
+  Invoice,
+  ApiResponse,
+} from '@/types';
 import { canCreateResource, canEditResource, canDeleteResource } from '@/lib/permissions';
 import { shareInvoiceViaWhatsApp } from '@/lib/whatsapp';
 import { Button } from '@/components/ui/Button';
@@ -18,19 +27,38 @@ import { PageHeader, LoadingSpinner, Badge, formatCurrency, formatDate, EmptySta
 import { RowActions, confirmDelete } from '@/components/ui/RowActions';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
+/** Service types that render as repeatable multi-row tables (hotel rooms, transport sectors). */
+const ROW_BASED_TYPES: BookingServiceItem['serviceType'][] = ['HOTEL', 'TRANSPORT'];
+
+const emptyHotelRow = (): ServiceRow => ({ hotelName: '', checkInDate: '', checkOutDate: '', roomType: '', numRooms: '1' });
+const emptyTransportRow = (): ServiceRow => ({ from: '', to: '', date: '', vehicleType: '' });
+
+const defaultRowFor = (type: BookingServiceItem['serviceType']): ServiceRow =>
+  type === 'HOTEL' ? emptyHotelRow() : emptyTransportRow();
+
 const emptyServiceItem = (): BookingServiceItem => ({
   serviceType: 'TICKET',
   description: '',
   amount: 0,
   costAmount: 0,
   details: {},
+  rows: [],
 });
 
 const emptyForm = {
-  packageId: '',
+  bookingType: 'B2B' as BookingType,
   customerId: '',
+  guestName: '',
+  packageId: '',
+  currency: 'PKR' as 'PKR' | 'SAR',
+  priceMode: 'DETERMINED' as PriceMode,
   totalAmount: '',
-  numTravelers: '1',
+  adults: '1',
+  children: '0',
+  infants: '0',
+  priceAdult: '0',
+  priceChild: '0',
+  priceInfant: '0',
   travelDate: '',
   returnDate: '',
   notes: '',
@@ -38,16 +66,20 @@ const emptyForm = {
   serviceItems: [] as BookingServiceItem[],
 };
 
+type FormState = typeof emptyForm;
+
+const toInt = (v: string) => parseInt(v, 10) || 0;
+const toNum = (v: string) => parseFloat(v) || 0;
+
 export default function BookingsPage() {
   const user = useSelector((state: RootState) => state.auth.user);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [packages, setPackages] = useState<Package[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [selectedCustomerLabel, setSelectedCustomerLabel] = useState('');
   const [saving, setSaving] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -60,15 +92,11 @@ export default function BookingsPage() {
     const query = buildQueryString({ startDate: dates.startDate, endDate: dates.endDate });
     Promise.allSettled([
       api.get<ApiResponse<Booking[]>>(`/bookings${query}`),
-      api.get<ApiResponse<Customer[]>>('/customers?limit=200'),
-      api.get<ApiResponse<Package[]>>('/packages?limit=200'),
       api.get<ApiResponse<Vendor[]>>('/vendors?limit=200'),
     ])
-      .then(([bookingsRes, customersRes, packagesRes, vendorsRes]) => {
+      .then(([bookingsRes, vendorsRes]) => {
         if (bookingsRes.status === 'fulfilled') setBookings(bookingsRes.value.data || []);
         else setLoadError(bookingsRes.reason?.message || 'Failed to load bookings');
-        if (customersRes.status === 'fulfilled') setCustomers(customersRes.value.data || []);
-        if (packagesRes.status === 'fulfilled') setPackages(packagesRes.value.data || []);
         if (vendorsRes.status === 'fulfilled') setVendors(vendorsRes.value.data || []);
       })
       .finally(() => setLoading(false));
@@ -78,21 +106,32 @@ export default function BookingsPage() {
 
   const resetForm = () => {
     setForm(emptyForm);
+    setSelectedCustomerLabel('');
     setEditingId(null);
     setShowForm(false);
   };
 
-  const calcTotal = (packageId: string, numTravelers: string, items: BookingServiceItem[]) => {
-    let total = 0;
-    const pkg = packages.find((p) => p.id === packageId);
-    if (pkg) total += Number(pkg.price) * (parseInt(numTravelers, 10) || 1);
-    total += items.reduce((s, i) => s + Number(i.amount || 0), 0);
+  const currencySuffix = (label: string) => `${label} (${form.currency})`;
+
+  /**
+   * Determined mode charges the customer flat per-passenger category rates.
+   * Breakdown mode sums the sale price of every active service block.
+   */
+  const calcTotal = (next: FormState) => {
+    if (next.priceMode === 'DETERMINED') {
+      const total =
+        toInt(next.adults) * toNum(next.priceAdult) +
+        toInt(next.children) * toNum(next.priceChild) +
+        toInt(next.infants) * toNum(next.priceInfant);
+      return String(total);
+    }
+    const total = next.serviceItems.reduce((s, i) => s + Number(i.amount || 0), 0);
     return String(total);
   };
 
-  const updateForm = (updates: Partial<typeof form>) => {
+  const updateForm = (updates: Partial<FormState>) => {
     const next = { ...form, ...updates };
-    next.totalAmount = calcTotal(next.packageId, next.numTravelers, next.serviceItems);
+    next.totalAmount = calcTotal(next);
     setForm(next);
   };
 
@@ -101,12 +140,19 @@ export default function BookingsPage() {
   };
 
   const removeServiceItem = (idx: number) => {
-    const items = form.serviceItems.filter((_, i) => i !== idx);
-    updateForm({ serviceItems: items });
+    updateForm({ serviceItems: form.serviceItems.filter((_, i) => i !== idx) });
   };
 
   const updateServiceItem = (idx: number, updates: Partial<BookingServiceItem>) => {
-    const items = form.serviceItems.map((item, i) => (i === idx ? { ...item, ...updates } : item));
+    const items = form.serviceItems.map((item, i) => {
+      if (i !== idx) return item;
+      const nextItem = { ...item, ...updates };
+      // When switching to a row-based service, seed one row so the table is usable immediately.
+      if (updates.serviceType && ROW_BASED_TYPES.includes(updates.serviceType) && (!nextItem.rows || nextItem.rows.length === 0)) {
+        nextItem.rows = [defaultRowFor(updates.serviceType)];
+      }
+      return nextItem;
+    });
     updateForm({ serviceItems: items });
   };
 
@@ -115,37 +161,99 @@ export default function BookingsPage() {
     updateServiceItem(idx, { details: { ...item.details, [key]: value } });
   };
 
+  const addServiceRow = (idx: number) => {
+    const item = form.serviceItems[idx];
+    const rows = [...(item.rows || []), defaultRowFor(item.serviceType)];
+    updateServiceItem(idx, { rows });
+  };
+
+  const removeServiceRow = (idx: number, rowIdx: number) => {
+    const item = form.serviceItems[idx];
+    const rows = (item.rows || []).filter((_, i) => i !== rowIdx);
+    updateServiceItem(idx, { rows });
+  };
+
+  const updateServiceRow = (idx: number, rowIdx: number, key: string, value: string) => {
+    const item = form.serviceItems[idx];
+    const rows = (item.rows || []).map((row, i) => (i === rowIdx ? { ...row, [key]: value } : row));
+    updateServiceItem(idx, { rows });
+  };
+
   const startEdit = (b: Booking) => {
     setEditingId(b.id);
+    const bookingType: BookingType = b.bookingType || (b.customer?.customerType === 'B2C' ? 'B2C' : 'B2B');
+    // Legacy bookings (created before price modes existed) carried per-item sale prices.
+    // Open them in Breakdown mode so those amounts are preserved rather than zeroed.
+    const legacyMode: PriceMode = (b.serviceItems?.some((s) => Number(s.amount) > 0) || b.package) ? 'BREAKDOWN' : 'DETERMINED';
+    setSelectedCustomerLabel(
+      b.customer
+        ? b.customer.customerType === 'B2B' && b.customer.companyName
+          ? b.customer.companyName
+          : `${b.customer.firstName} ${b.customer.lastName}`
+        : ''
+    );
     setForm({
-      packageId: b.package?.id || '',
+      bookingType,
       customerId: b.customer?.id || '',
+      guestName: b.guestName || (bookingType === 'B2C' ? `${b.customer?.firstName || ''} ${b.customer?.lastName || ''}`.trim() : ''),
+      packageId: b.package?.id || '',
+      currency: b.currency || 'PKR',
+      priceMode: b.priceMode || legacyMode,
       totalAmount: String(b.totalAmount),
-      numTravelers: String(b.numTravelers),
+      adults: String(b.adults ?? b.numTravelers ?? 1),
+      children: String(b.children ?? 0),
+      infants: String(b.infants ?? 0),
+      priceAdult: String(b.priceAdult ?? 0),
+      priceChild: String(b.priceChild ?? 0),
+      priceInfant: String(b.priceInfant ?? 0),
       travelDate: b.travelDate ? b.travelDate.split('T')[0] : '',
       returnDate: b.returnDate ? b.returnDate.split('T')[0] : '',
       notes: b.notes || '',
       status: b.status,
-      serviceItems: b.serviceItems?.map((s) => ({
-        serviceType: s.serviceType,
-        description: s.description,
-        amount: s.amount,
-        costAmount: s.costAmount || 0,
-        vendorId: s.vendorId,
-        details: (s.details as Record<string, string>) || {},
-      })) || [],
+      serviceItems: b.serviceItems?.map((s) => {
+        const rawDetails = (s.details as Record<string, unknown>) || {};
+        const { rows: persistedRows, ...restDetails } = rawDetails;
+        return {
+          serviceType: s.serviceType,
+          description: s.description,
+          amount: s.amount,
+          costAmount: s.costAmount || 0,
+          vendorId: s.vendorId,
+          details: restDetails as Record<string, string>,
+          rows: (persistedRows as ServiceRow[]) || (s.rows as ServiceRow[]) || [],
+        };
+      }) || [],
     });
     setShowForm(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.bookingType === 'B2B' && !form.customerId) {
+      alert('Please select a registered company/client for B2B bookings.');
+      return;
+    }
+    if (form.bookingType === 'B2C' && !form.guestName.trim()) {
+      alert('Please enter the guest name for B2C bookings.');
+      return;
+    }
     setSaving(true);
+    const numTravelers = toInt(form.adults) + toInt(form.children) + toInt(form.infants);
     const payload = {
+      bookingType: form.bookingType,
+      customerId: form.bookingType === 'B2B' ? form.customerId : undefined,
+      guestName: form.bookingType === 'B2C' ? form.guestName.trim() : undefined,
       packageId: form.packageId || undefined,
-      customerId: form.customerId,
-      totalAmount: parseFloat(form.totalAmount),
-      numTravelers: parseInt(form.numTravelers),
+      currency: form.currency,
+      priceMode: form.priceMode,
+      totalAmount: parseFloat(form.totalAmount) || 0,
+      numTravelers: numTravelers || 1,
+      adults: toInt(form.adults),
+      children: toInt(form.children),
+      infants: toInt(form.infants),
+      priceAdult: form.priceMode === 'DETERMINED' ? toNum(form.priceAdult) : 0,
+      priceChild: form.priceMode === 'DETERMINED' ? toNum(form.priceChild) : 0,
+      priceInfant: form.priceMode === 'DETERMINED' ? toNum(form.priceInfant) : 0,
       travelDate: form.travelDate || undefined,
       returnDate: form.returnDate || undefined,
       notes: form.notes,
@@ -153,10 +261,11 @@ export default function BookingsPage() {
       serviceItems: form.serviceItems.map((s) => ({
         serviceType: s.serviceType,
         description: s.description || `${s.serviceType} service`,
-        amount: Number(s.amount),
+        // Determined mode captures cost only; the customer-facing amount comes from per-passenger rates.
+        amount: form.priceMode === 'BREAKDOWN' ? Number(s.amount) : 0,
         costAmount: Number(s.costAmount || 0),
         vendorId: s.vendorId || undefined,
-        details: s.details,
+        details: { ...(s.details || {}), ...(s.rows && s.rows.length ? { rows: s.rows } : {}) },
       })),
     };
     try {
@@ -189,13 +298,20 @@ export default function BookingsPage() {
   };
 
   const vendorCategoryForType = (type: string) =>
-    type === 'HOTEL' ? 'HOTEL' : type === 'VISA' ? 'VISA' : type === 'TICKET' ? 'TICKETING' : 'OTHER';
+    type === 'HOTEL' ? 'HOTEL'
+      : type === 'VISA' ? 'VISA'
+      : type === 'TICKET' ? 'TICKETING'
+      : type === 'TRANSPORT' ? 'TRANSPORT'
+      : 'OTHER';
+
+  const customerDisplay = (b: Booking) =>
+    b.guestName || (b.customer?.companyName) || `${b.customer?.firstName || ''} ${b.customer?.lastName || ''}`.trim() || '—';
 
   return (
     <div>
       <PageHeader
         title="Booking Management"
-        subtitle="Create bookings with ticket, visa, and hotel services"
+        subtitle="Create bookings with ticket, visa, accommodation, and transport services"
         action={canCreateResource(user, 'bookings') ? (
           <Button onClick={() => { resetForm(); setShowForm(true); }}><Plus className="w-4 h-4 mr-2" />New Booking</Button>
         ) : undefined}
@@ -220,28 +336,124 @@ export default function BookingsPage() {
           <CardBody>
             <h3 className="font-bold text-slate-900 mb-4">{editingId ? 'Edit Booking' : 'New Booking'}</h3>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Booking type selector */}
+              <div className="inline-flex rounded-xl border border-slate-200 p-1 bg-slate-50">
+                {(['B2B', 'B2C'] as BookingType[]).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => updateForm({ bookingType: t })}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      form.bookingType === t ? 'bg-teal-600 text-white shadow' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {t === 'B2B' ? 'B2B (Company / Client)' : 'B2C (Walk-in Guest)'}
+                  </button>
+                ))}
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <SearchableSelect label="Customer" value={form.customerId} onChange={(v) => updateForm({ customerId: v })} onSearch={searchCustomers} options={[{ value: '', label: 'Select customer' }]} />
+                {form.bookingType === 'B2B' ? (
+                  <SearchableSelect
+                    label="Company / Client"
+                    value={form.customerId}
+                    onChange={(v) => updateForm({ customerId: v })}
+                    onSearch={searchB2BCustomers}
+                    selectedLabel={selectedCustomerLabel}
+                    options={[{ value: '', label: 'Select company/client' }]}
+                    required
+                  />
+                ) : (
+                  <Input
+                    label="Guest Name"
+                    value={form.guestName}
+                    onChange={(e) => updateForm({ guestName: e.target.value })}
+                    placeholder="Type guest name"
+                    required
+                  />
+                )}
                 <SearchableSelect label="Package (optional)" value={form.packageId} onChange={(v) => updateForm({ packageId: v })} onSearch={searchPackages} options={[{ value: '', label: 'No package' }]} />
-                <Input label="Total Amount" type="number" value={form.totalAmount} onChange={(e) => setForm({ ...form, totalAmount: e.target.value })} required />
-                <Input label="Travelers" type="number" min={1} value={form.numTravelers} onChange={(e) => updateForm({ numTravelers: e.target.value })} />
-                <Input label="Travel Date" type="date" value={form.travelDate} onChange={(e) => updateForm({ travelDate: e.target.value })} />
-                <Input label="Return Date" type="date" value={form.returnDate} onChange={(e) => updateForm({ returnDate: e.target.value })} />
                 <Select label="Status" value={form.status} onChange={(e) => updateForm({ status: e.target.value })} options={[
                   { value: 'PENDING', label: 'Pending' },
                   { value: 'CONFIRMED', label: 'Confirmed (auto-invoice & ledger)' },
                   { value: 'COMPLETED', label: 'Completed' },
                   { value: 'CANCELLED', label: 'Cancelled' },
                 ]} />
+
+                {/* Passenger counts — shared across both branches */}
+                <Input label="Adults" type="number" min={0} value={form.adults} onChange={(e) => updateForm({ adults: e.target.value })} />
+                <Input label="Children" type="number" min={0} value={form.children} onChange={(e) => updateForm({ children: e.target.value })} />
+                <Input label="Infants" type="number" min={0} value={form.infants} onChange={(e) => updateForm({ infants: e.target.value })} />
+
+                <Input label="Travel Date" type="date" value={form.travelDate} onChange={(e) => updateForm({ travelDate: e.target.value })} />
+                <Input label="Return Date" type="date" value={form.returnDate} onChange={(e) => updateForm({ returnDate: e.target.value })} />
               </div>
 
+              {/* Pricing architecture */}
+              <div className="border border-slate-200 rounded-xl p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <h4 className="font-semibold text-slate-800">Pricing</h4>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="inline-flex rounded-lg border border-slate-200 p-1 bg-slate-50">
+                      {([['DETERMINED', 'Determined Prices'], ['BREAKDOWN', 'With Breakdown']] as [PriceMode, string][]).map(([mode, label]) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => updateForm({ priceMode: mode })}
+                          className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                            form.priceMode === mode ? 'bg-teal-600 text-white shadow' : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {form.priceMode === 'BREAKDOWN' && (
+                      <div className="inline-flex items-center gap-2">
+                        <span className="text-xs font-medium text-slate-500">Currency</span>
+                        <div className="inline-flex rounded-lg border border-slate-200 p-1 bg-slate-50">
+                          {(['PKR', 'SAR'] as const).map((c) => (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => updateForm({ currency: c })}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                                form.currency === c ? 'bg-slate-900 text-white shadow' : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              {c}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {form.priceMode === 'DETERMINED' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Input label="Price per Adult" type="number" value={form.priceAdult} onChange={(e) => updateForm({ priceAdult: e.target.value })} hint={`${form.adults || 0} adult(s)`} />
+                    <Input label="Price per Child" type="number" value={form.priceChild} onChange={(e) => updateForm({ priceChild: e.target.value })} hint={`${form.children || 0} child(ren)`} />
+                    <Input label="Price per Infant" type="number" value={form.priceInfant} onChange={(e) => updateForm({ priceInfant: e.target.value })} hint={`${form.infants || 0} infant(s)`} />
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">Pricing is captured per service block below (cost &amp; sale) in {form.currency}.</p>
+                )}
+
+                <div className="mt-4 flex items-center justify-between rounded-lg bg-teal-50 px-4 py-3">
+                  <span className="text-sm font-medium text-teal-800">Total Amount</span>
+                  <span className="text-lg font-bold text-teal-900">{formatCurrency(Number(form.totalAmount) || 0)}</span>
+                </div>
+              </div>
+
+              {/* Service items */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-semibold text-slate-800">Service Items (Ticket / Visa / Hotel)</h4>
+                  <h4 className="font-semibold text-slate-800">Service Items (Ticket / Visa / Accommodation / Transport)</h4>
                   <Button type="button" variant="secondary" onClick={addServiceItem}><Plus className="w-4 h-4 mr-1" />Add Service</Button>
                 </div>
                 {form.serviceItems.length === 0 ? (
-                  <p className="text-sm text-slate-500">Add ticket, visa, or hotel services with custom details.</p>
+                  <p className="text-sm text-slate-500">Add ticket, visa, accommodation, or transport services with custom details.</p>
                 ) : (
                   <div className="space-y-4">
                     {form.serviceItems.map((item, idx) => (
@@ -254,12 +466,17 @@ export default function BookingsPage() {
                           <Select label="Service Type" value={item.serviceType} onChange={(e) => updateServiceItem(idx, { serviceType: e.target.value as BookingServiceItem['serviceType'] })} options={[
                             { value: 'TICKET', label: 'Ticket' },
                             { value: 'VISA', label: 'Visa' },
-                            { value: 'HOTEL', label: 'Hotel' },
+                            { value: 'HOTEL', label: 'Accommodation' },
+                            { value: 'TRANSPORT', label: 'Transport' },
                           ]} />
                           <Input label="Description" value={item.description} onChange={(e) => updateServiceItem(idx, { description: e.target.value })} placeholder="e.g. Dubai Flight" />
-                          <Input label="Selling Price" type="number" value={String(item.amount)} onChange={(e) => updateServiceItem(idx, { amount: parseFloat(e.target.value) || 0 })} />
-                          <Input label="Vendor Cost" type="number" value={String(item.costAmount || 0)} onChange={(e) => updateServiceItem(idx, { costAmount: parseFloat(e.target.value) || 0 })} />
-                          <SearchableSelect label="Vendor" value={item.vendorId || ''} onChange={(v) => updateServiceItem(idx, { vendorId: v })} onSearch={(q) => searchVendors(q, vendorCategoryForType(item.serviceType))} options={[{ value: '', label: 'Auto-assign' }]} />
+
+                          {/* Cost price is always captured; sale price only in breakdown mode. */}
+                          <Input label={currencySuffix('Cost Price')} type="number" value={String(item.costAmount || 0)} onChange={(e) => updateServiceItem(idx, { costAmount: parseFloat(e.target.value) || 0 })} />
+                          {form.priceMode === 'BREAKDOWN' && (
+                            <Input label={currencySuffix('Sale Price')} type="number" value={String(item.amount)} onChange={(e) => updateServiceItem(idx, { amount: parseFloat(e.target.value) || 0 })} />
+                          )}
+                          <SearchableSelect label="Vendor (posting)" value={item.vendorId || ''} onChange={(v) => updateServiceItem(idx, { vendorId: v })} onSearch={(q) => searchVendors(q, vendorCategoryForType(item.serviceType))} options={[{ value: '', label: 'Auto-assign' }]} />
 
                           {item.serviceType === 'TICKET' && (
                             <>
@@ -283,17 +500,17 @@ export default function BookingsPage() {
                               <Input label="Processing Days" value={item.details?.processingDays || ''} onChange={(e) => updateServiceDetails(idx, 'processingDays', e.target.value)} />
                             </>
                           )}
-
-                          {item.serviceType === 'HOTEL' && (
-                            <>
-                              <Input label="Hotel Name" value={item.details?.hotelName || ''} onChange={(e) => updateServiceDetails(idx, 'hotelName', e.target.value)} />
-                              <Input label="Check-in Date" type="date" value={item.details?.checkInDate || ''} onChange={(e) => updateServiceDetails(idx, 'checkInDate', e.target.value)} />
-                              <Input label="Check-out Date" type="date" value={item.details?.checkOutDate || ''} onChange={(e) => updateServiceDetails(idx, 'checkOutDate', e.target.value)} />
-                              <Input label="Room Type" value={item.details?.roomType || ''} onChange={(e) => updateServiceDetails(idx, 'roomType', e.target.value)} />
-                              <Input label="Rooms" type="number" value={item.details?.numRooms || '1'} onChange={(e) => updateServiceDetails(idx, 'numRooms', e.target.value)} />
-                            </>
-                          )}
                         </div>
+
+                        {ROW_BASED_TYPES.includes(item.serviceType) && (
+                          <ServiceRows
+                            item={item}
+                            idx={idx}
+                            onAddRow={() => addServiceRow(idx)}
+                            onRemoveRow={(rowIdx) => removeServiceRow(idx, rowIdx)}
+                            onUpdateRow={(rowIdx, key, value) => updateServiceRow(idx, rowIdx, key, value)}
+                          />
+                        )}
                       </div>
                     ))}
                   </div>
@@ -334,7 +551,7 @@ export default function BookingsPage() {
                     {bookings.map((b) => (
                       <TableRow key={b.id}>
                         <TableCell className="font-semibold text-slate-900">{b.bookingNumber}</TableCell>
-                        <TableCell>{b.customer?.firstName} {b.customer?.lastName}</TableCell>
+                        <TableCell>{customerDisplay(b)}</TableCell>
                         <TableCell className="hidden md:table-cell text-sm text-slate-600">
                           {b.serviceItems?.map((s) => s.serviceType).join(', ') || b.package?.name || '—'}
                         </TableCell>
@@ -358,6 +575,61 @@ export default function BookingsPage() {
             )}
           </CardBody>
         </Card>
+      )}
+    </div>
+  );
+}
+
+interface ServiceRowsProps {
+  item: BookingServiceItem;
+  idx: number;
+  onAddRow: () => void;
+  onRemoveRow: (rowIdx: number) => void;
+  onUpdateRow: (rowIdx: number, key: string, value: string) => void;
+}
+
+function ServiceRows({ item, onAddRow, onRemoveRow, onUpdateRow }: ServiceRowsProps) {
+  const isHotel = item.serviceType === 'HOTEL';
+  const rows = item.rows || [];
+  return (
+    <div className="mt-4 border-t border-slate-200 pt-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium text-slate-700">{isHotel ? 'Hotel Rooms' : 'Transport Sectors'}</span>
+        <Button type="button" variant="secondary" onClick={onAddRow}><Plus className="w-4 h-4 mr-1" />Add Row</Button>
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-xs text-slate-400">No rows yet — click &quot;Add Row&quot; to begin.</p>
+      ) : (
+        <div className="space-y-3">
+          {rows.map((row, rowIdx) => (
+            <div key={rowIdx} className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-slate-500">Row #{rowIdx + 1}</span>
+                <button type="button" onClick={() => onRemoveRow(rowIdx)} className="text-red-500 hover:text-red-700 flex items-center gap-1 text-xs">
+                  <Trash2 className="w-3.5 h-3.5" />Delete Row
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {isHotel ? (
+                  <>
+                    <Input label="Hotel Name" value={row.hotelName || ''} onChange={(e) => onUpdateRow(rowIdx, 'hotelName', e.target.value)} />
+                    <Input label="Room Type" value={row.roomType || ''} onChange={(e) => onUpdateRow(rowIdx, 'roomType', e.target.value)} />
+                    <Input label="Rooms" type="number" min={1} value={row.numRooms || '1'} onChange={(e) => onUpdateRow(rowIdx, 'numRooms', e.target.value)} />
+                    <Input label="Check-in Date" type="date" value={row.checkInDate || ''} onChange={(e) => onUpdateRow(rowIdx, 'checkInDate', e.target.value)} />
+                    <Input label="Check-out Date" type="date" value={row.checkOutDate || ''} onChange={(e) => onUpdateRow(rowIdx, 'checkOutDate', e.target.value)} />
+                  </>
+                ) : (
+                  <>
+                    <Input label="From" value={row.from || ''} onChange={(e) => onUpdateRow(rowIdx, 'from', e.target.value)} />
+                    <Input label="To" value={row.to || ''} onChange={(e) => onUpdateRow(rowIdx, 'to', e.target.value)} />
+                    <Input label="Date" type="date" value={row.date || ''} onChange={(e) => onUpdateRow(rowIdx, 'date', e.target.value)} />
+                    <Input label="Vehicle Type" value={row.vehicleType || ''} onChange={(e) => onUpdateRow(rowIdx, 'vehicleType', e.target.value)} />
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
