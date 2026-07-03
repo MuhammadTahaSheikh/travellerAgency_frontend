@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { Plus, CheckCircle, Download, MessageCircle, Trash2, Link2 } from 'lucide-react';
+import { CheckCircle, Download, MessageCircle, Trash2, Link2 } from 'lucide-react';
 import api from '@/lib/api';
 import { copyText } from '@/lib/documentLinks';
 import { searchCustomers, searchVendors } from '@/lib/searchableOptions';
 import { buildQueryString } from '@/lib/query';
 import { RootState } from '@/store';
 import { Invoice, Customer, Vendor, ApiResponse } from '@/types';
-import { canCreateResource, canEditResource, canDeleteResource } from '@/lib/permissions';
+import { canEditResource, canDeleteResource } from '@/lib/permissions';
 import { shareInvoiceViaWhatsApp } from '@/lib/whatsapp';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, SearchableSelect } from '@/components/ui/Input';
@@ -203,10 +203,7 @@ export default function InvoicesPage() {
     <div>
       <PageHeader
         title="Invoice Management"
-        subtitle="Create and track customer invoices"
-        action={canCreateResource(user, 'invoices') ? (
-          <Button onClick={() => { resetForm(); setShowForm(true); }}><Plus className="w-4 h-4 mr-2" />New Invoice</Button>
-        ) : undefined}
+        subtitle="Invoices are generated from confirmed bookings"
       />
 
       <DateRangeFilter

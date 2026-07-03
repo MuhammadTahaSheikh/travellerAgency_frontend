@@ -72,6 +72,7 @@ export interface Vendor {
   contactPerson?: string;
   email?: string;
   phone?: string;
+  address?: string;
   account?: Account;
 }
 

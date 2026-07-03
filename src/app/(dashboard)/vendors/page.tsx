@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { Plus, Wallet, BookOpen, Download } from 'lucide-react';
+import { Plus, Wallet, BookOpen, Download, Pencil } from 'lucide-react';
 import { searchPaymentAccounts } from '@/lib/searchableOptions';
 import api from '@/lib/api';
 import { exportLedgerCsv, exportLedgerPdf } from '@/lib/ledgerExport';
 import { RootState } from '@/store';
-import { isAdminOrAbove } from '@/lib/permissions';
+import { isAdminOrAbove, isSuperAdmin } from '@/lib/permissions';
 import { Vendor, Account, ApiResponse } from '@/types';
 import { uploadAttachment } from '@/lib/upload';
 import { LedgerTransactionTable, LedgerTransactionRow } from '@/components/ledger/LedgerTransactionTable';
@@ -19,7 +19,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { PageHeader, LoadingSpinner, formatCurrency, EmptyState } from '@/components/ui/Common';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
-const emptyForm = { name: '', contactPerson: '', email: '', phone: '' };
+const emptyForm = { name: '', contactPerson: '', email: '', phone: '', address: '' };
 
 type VendorPayable = {
   vendorId: string;
@@ -39,8 +39,10 @@ export default function VendorsPage() {
   const [payables, setPayables] = useState<VendorPayable[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingVendorId, setEditingVendorId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const canManageVendors = isSuperAdmin(user);
   const [loadError, setLoadError] = useState('');
   const [payVendor, setPayVendor] = useState<Vendor | null>(null);
   const [payForm, setPayForm] = useState({ accountId: '', amount: '', currency: 'PKR', exchangeRate: '75', method: 'BANK_TRANSFER', notes: '' });
@@ -69,13 +71,40 @@ export default function VendorsPage() {
 
   useEffect(() => { loadData(); }, []);
 
+  const resetVendorForm = () => {
+    setForm(emptyForm);
+    setEditingVendorId(null);
+    setShowForm(false);
+  };
+
+  const startAddVendor = () => {
+    setForm(emptyForm);
+    setEditingVendorId(null);
+    setShowForm(true);
+  };
+
+  const startEditVendor = (v: Vendor) => {
+    setForm({
+      name: v.name || '',
+      contactPerson: v.contactPerson || '',
+      email: v.email || '',
+      phone: v.phone || '',
+      address: v.address || '',
+    });
+    setEditingVendorId(v.id);
+    setShowForm(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/vendors', form);
-      setForm(emptyForm);
-      setShowForm(false);
+      if (editingVendorId) {
+        await api.put(`/vendors/${editingVendorId}`, form);
+      } else {
+        await api.post('/vendors', form);
+      }
+      resetVendorForm();
       loadData();
     } catch (err) {
       alert((err as Error).message);
@@ -142,7 +171,7 @@ export default function VendorsPage() {
             {canTransfer && (
               <InternalTransferButton onClick={() => setShowInternalTransfer(true)} />
             )}
-            <Button onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-2" />Add Vendor</Button>
+            <Button onClick={startAddVendor}><Plus className="w-4 h-4 mr-2" />Add Vendor</Button>
           </div>
         )}
       />
@@ -200,14 +229,16 @@ export default function VendorsPage() {
       {showForm && (
         <Card className="mb-6">
           <CardBody>
+            <h3 className="font-bold text-slate-900 mb-4">{editingVendorId ? 'Edit Vendor' : 'New Vendor'}</h3>
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <Input label="Vendor Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
               <Input label="Contact Person" value={form.contactPerson} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} />
               <Input label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               <Input label="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <Input label="Address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="md:col-span-2" />
               <div className="md:col-span-2 lg:col-span-3 flex gap-2">
-                <Button type="submit" loading={saving}>Create Vendor</Button>
-                <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button type="submit" loading={saving}>{editingVendorId ? 'Update Vendor' : 'Create Vendor'}</Button>
+                <Button type="button" variant="secondary" onClick={resetVendorForm}>Cancel</Button>
               </div>
             </form>
           </CardBody>
@@ -262,9 +293,10 @@ export default function VendorsPage() {
                     <tr>
                       <TableHeaderCell>Code</TableHeaderCell>
                       <TableHeaderCell>Name</TableHeaderCell>
-                      <TableHeaderCell>Contact</TableHeaderCell>
+                      <TableHeaderCell>Contact Person</TableHeaderCell>
+                      <TableHeaderCell className="hidden sm:table-cell">Phone</TableHeaderCell>
                       <TableHeaderCell>Outstanding</TableHeaderCell>
-                      <TableHeaderCell>Ledger Balance</TableHeaderCell>
+                      <TableHeaderCell className="hidden md:table-cell">Ledger Balance</TableHeaderCell>
                       <TableHeaderCell align="right">Actions</TableHeaderCell>
                     </tr>
                   </TableHead>
@@ -278,15 +310,19 @@ export default function VendorsPage() {
                         <TableRow key={v.id}>
                           <TableCell className="font-medium text-slate-900">{v.vendorCode || '—'}</TableCell>
                           <TableCell>{v.name}</TableCell>
-                          <TableCell>{v.contactPerson || v.phone || '—'}</TableCell>
+                          <TableCell>{v.contactPerson || '—'}</TableCell>
+                          <TableCell className="hidden sm:table-cell">{v.phone || '—'}</TableCell>
                           <TableCell className="font-semibold text-amber-700">{formatCurrency(outstanding)}</TableCell>
-                          <TableCell className={inSync ? '' : 'text-red-600'}>
+                          <TableCell className={`hidden md:table-cell ${inSync ? '' : 'text-red-600'}`}>
                             <span title={inSync ? undefined : 'Ledger does not match outstanding — contact admin to reconcile'}>
                               {formatCurrency(ledger)}
                             </span>
                           </TableCell>
                           <TableCell align="right">
                             <div className="flex justify-end gap-1">
+                              {canManageVendors && (
+                                <Button variant="secondary" onClick={() => startEditVendor(v)} title="Edit vendor"><Pencil className="w-4 h-4" /></Button>
+                              )}
                               <Button variant="secondary" onClick={() => viewVendorLedger(v)} title="Ledger"><BookOpen className="w-4 h-4" /></Button>
                               <Button variant="secondary" onClick={() => setPayVendor(v)} title="Pay vendor"><Wallet className="w-4 h-4" /></Button>
                             </div>

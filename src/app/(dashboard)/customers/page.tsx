@@ -18,7 +18,7 @@ import { LedgerTransactionTable, LedgerTransactionRow } from '@/components/ledge
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
 const emptyForm = {
-  customerType: 'B2C' as 'B2C' | 'B2B',
+  customerType: 'B2B' as 'B2C' | 'B2B',
   firstName: '',
   lastName: '',
   companyName: '',
@@ -168,7 +168,10 @@ export default function CustomersPage() {
                 label="Customer Type"
                 value={form.customerType}
                 onChange={(e) => setForm({ ...form, customerType: e.target.value as 'B2C' | 'B2B' })}
-                options={[{ value: 'B2C', label: 'B2C (Individual)' }, { value: 'B2B', label: 'B2B (Trade Partner)' }]}
+                disabled={!editingId}
+                options={editingId
+                  ? [{ value: 'B2C', label: 'B2C (Individual)' }, { value: 'B2B', label: 'B2B (Trade Partner)' }]
+                  : [{ value: 'B2B', label: 'B2B (Trade Partner)' }]}
               />
               {form.customerType === 'B2B' ? (
                 <>
