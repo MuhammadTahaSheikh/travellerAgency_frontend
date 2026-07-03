@@ -34,7 +34,7 @@ export function ExchangeRateInput({
       {rate && (
         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
           <span>
-            Live: <strong className="text-teal-700">1 SAR = {rate.pkrPerSar.toFixed(2)} PKR</strong>
+            System rate: <strong className="text-teal-700">1 SAR = {rate.pkrPerSar.toFixed(2)} PKR</strong>
             {' · '}
             <strong className="text-teal-700">1 PKR = {rate.sarPerPkr.toFixed(4)} SAR</strong>
           </span>
@@ -44,7 +44,7 @@ export function ExchangeRateInput({
               onClick={() => onChange(liveRateString)}
               className="text-teal-700 font-semibold hover:underline"
             >
-              Use live rate
+              Use system rate
             </button>
           )}
         </div>

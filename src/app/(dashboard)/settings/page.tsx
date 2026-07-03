@@ -1,13 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import api from '@/lib/api';
 import { ApiResponse } from '@/types';
 import { CURRENCY_OPTIONS } from '@/lib/currency';
 import { fetchAppSettings } from '@/store/slices/settingsSlice';
-import { formatExchangeRateLabel, useExchangeRate } from '@/contexts/ExchangeRateContext';
+import { useExchangeRate } from '@/contexts/ExchangeRateContext';
 import { isSuperAdmin } from '@/lib/permissions';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
@@ -29,11 +28,16 @@ const SETTING_LABELS: Record<string, string> = {
 export default function SettingsPage() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
-  const { rate, loading: rateLoading, refresh } = useExchangeRate();
+  const { rate, refresh } = useExchangeRate();
   const [settings, setSettings] = useState<Record<string, Record<string, string>>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingDefaultRate, setSavingDefaultRate] = useState(false);
+  const [manualRateInput, setManualRateInput] = useState('');
+
+  useEffect(() => {
+    if (rate && !manualRateInput) setManualRateInput(String(rate.manualDefault));
+  }, [rate, manualRateInput]);
 
   const loadSettings = () => {
     setLoading(true);
@@ -69,13 +73,18 @@ export default function SettingsPage() {
   };
 
   const handleSaveDefaultRate = async () => {
-    if (!rate) return;
+    const value = Number(manualRateInput);
+    if (!Number.isFinite(value) || value <= 0) {
+      alert('Enter a valid exchange rate (PKR per SAR).');
+      return;
+    }
     setSavingDefaultRate(true);
     try {
-      await api.put('/currency/default-rate', { rate: rate.pkrPerSar });
+      await api.put('/currency/default-rate', { rate: value });
       await dispatch(fetchAppSettings());
+      await refresh(true);
       loadSettings();
-      alert('Default PKR/SAR rate updated from live market rate');
+      alert('Exchange rate updated');
     } catch (err) {
       alert((err as Error).message);
     } finally {
@@ -120,34 +129,32 @@ export default function SettingsPage() {
 
       <Card className="mb-6">
         <CardHeader>
-          <h3 className="font-bold text-slate-900">PKR / SAR Exchange Rate</h3>
-          <p className="text-xs text-slate-500 mt-1">Live market rate refreshes every 30 minutes. Use it when recording SAR payments, expenses, and transfers.</p>
+          <h3 className="font-bold text-slate-900">PKR / SAR Exchange Rate (Manual)</h3>
+          <p className="text-xs text-slate-500 mt-1">Manually set the PKR value of 1 SAR. This rate is used across the app for SAR payments, expenses, transfers, and bookings. No external/live rate is used.</p>
         </CardHeader>
         <CardBody>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <p className="text-lg font-bold text-teal-700">
-                {rateLoading && !rate ? 'Loading…' : rate ? formatExchangeRateLabel(rate) : 'Rate unavailable'}
-              </p>
-              {rate && (
-                <p className="text-sm text-slate-500 mt-1">
-                  System default: <strong>{rate.manualDefault.toFixed(2)} PKR/SAR</strong>
-                  {rate.provider ? ` · Source: ${rate.provider}` : ''}
-                </p>
-              )}
+          <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+            <div className="sm:w-72">
+              <Input
+                label="Exchange Rate (PKR per SAR)"
+                type="number"
+                step="0.0001"
+                min={0}
+                value={manualRateInput}
+                onChange={(e) => setManualRateInput(e.target.value)}
+                disabled={!isSuperAdmin(user)}
+                hint={rate ? `1 SAR = ${rate.pkrPerSar.toFixed(2)} PKR · 1 PKR = ${rate.sarPerPkr.toFixed(4)} SAR` : undefined}
+              />
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="secondary" onClick={() => refresh(true)} disabled={rateLoading}>
-                <RefreshCw className={`w-4 h-4 mr-2 ${rateLoading ? 'animate-spin' : ''}`} />
-                Refresh
+            {isSuperAdmin(user) && (
+              <Button type="button" onClick={handleSaveDefaultRate} loading={savingDefaultRate}>
+                Save Rate
               </Button>
-              {isSuperAdmin(user) && rate && (
-                <Button type="button" onClick={handleSaveDefaultRate} loading={savingDefaultRate}>
-                  Set live rate as default
-                </Button>
-              )}
-            </div>
+            )}
           </div>
+          {!isSuperAdmin(user) && (
+            <p className="text-xs text-slate-500 mt-2">Only a Super Admin can change the exchange rate.</p>
+          )}
         </CardBody>
       </Card>
 

@@ -60,6 +60,7 @@ const emptyForm = {
   guestName: '',
   packageId: '',
   currency: 'PKR' as ServiceCurrency,
+  exchangeRate: '',
   priceMode: 'DETERMINED' as PriceMode,
   totalAmount: '',
   adults: '1',
@@ -175,8 +176,10 @@ export default function BookingsPage() {
   const [loadError, setLoadError] = useState('');
   const formRef = useRef<HTMLDivElement>(null);
 
-  const toPkr = (native: number, currency: ServiceCurrency) =>
-    currency === 'SAR' ? native * pkrPerSar : native;
+  // Manual PKR-per-SAR rate: the booking's own entry takes priority, else the system manual rate.
+  const rateOf = (f: FormState) => toNum(f.exchangeRate) || pkrPerSar;
+  const toPkr = (native: number, currency: ServiceCurrency, rateValue: number) =>
+    currency === 'SAR' ? native * rateValue : native;
 
   const vendorLabel = (id?: string) => (id ? vendors.find((v) => v.id === id)?.name || '' : '');
 
@@ -237,8 +240,9 @@ export default function BookingsPage() {
       return String(total);
     }
     const counts = countsOf(next);
+    const r = rateOf(next);
     const total = next.serviceItems.reduce(
-      (s, item) => s + toPkr(serviceSaleNative(item, counts), itemCurrency(item)),
+      (s, item) => s + toPkr(serviceSaleNative(item, counts), itemCurrency(item), r),
       0
     );
     return String(Math.round(total));
@@ -323,6 +327,12 @@ export default function BookingsPage() {
       guestName: b.guestName || (bookingType === 'B2C' ? `${b.customer?.firstName || ''} ${b.customer?.lastName || ''}`.trim() : ''),
       packageId: b.package?.id || '',
       currency: b.currency || 'PKR',
+      exchangeRate: (() => {
+        const found = b.serviceItems
+          ?.map((s) => (s.details as Record<string, string> | null)?.exchangeRate)
+          .find((v) => v && Number(v) > 0);
+        return found ? String(found) : '';
+      })(),
       priceMode: b.priceMode || legacyMode,
       totalAmount: String(b.totalAmount),
       adults: String(b.adults ?? b.numTravelers ?? 1),
@@ -380,6 +390,7 @@ export default function BookingsPage() {
     }
     setSaving(true);
     const counts = countsOf(form);
+    const rateValue = rateOf(form);
     const numTravelers = counts.adults + counts.children + counts.infants;
     const payload = {
       bookingType: form.bookingType,
@@ -414,14 +425,14 @@ export default function BookingsPage() {
           serviceType: s.serviceType,
           description: buildDescription(s),
           // Amounts are persisted in PKR (base currency) so invoices/ledger stay consistent.
-          amount: form.priceMode === 'BREAKDOWN' ? Math.round(toPkr(saleNative, cur)) : 0,
-          costAmount: Math.round(toPkr(costNative, cur)),
+          amount: form.priceMode === 'BREAKDOWN' ? Math.round(toPkr(saleNative, cur, rateValue)) : 0,
+          costAmount: Math.round(toPkr(costNative, cur, rateValue)),
           // Row-based services carry their vendor per row, so no item-level vendor.
           vendorId: rowBased ? undefined : s.vendorId || undefined,
           details: {
             ...(s.details || {}),
             currency: cur,
-            exchangeRate: String(pkrPerSar),
+            exchangeRate: String(rateValue),
             costOriginal: String(costNative),
             saleOriginal: String(saleNative),
             ...(rows.length ? { rows } : {}),
@@ -457,13 +468,6 @@ export default function BookingsPage() {
       alert((err as Error).message);
     }
   };
-
-  const vendorCategoryForType = (type: string) =>
-    type === 'HOTEL' ? 'HOTEL'
-      : type === 'VISA' ? 'VISA'
-      : type === 'TICKET' ? 'TICKETING'
-      : type === 'TRANSPORT' ? 'TRANSPORT'
-      : 'OTHER';
 
   const customerDisplay = (b: Booking) =>
     b.guestName || (b.customer?.companyName) || `${b.customer?.firstName || ''} ${b.customer?.lastName || ''}`.trim() || '—';
@@ -561,6 +565,19 @@ export default function BookingsPage() {
                   </div>
                 </div>
 
+                <div className="mb-4 sm:w-72">
+                  <Input
+                    label="Exchange Rate (PKR per SAR)"
+                    type="number"
+                    step="0.0001"
+                    min={0}
+                    value={form.exchangeRate}
+                    onChange={(e) => updateForm({ exchangeRate: e.target.value })}
+                    placeholder={pkrPerSar.toFixed(4)}
+                    hint="Manual rate used to convert any SAR service to PKR"
+                  />
+                </div>
+
                 {form.priceMode === 'DETERMINED' ? (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Input label="Price per Adult" type="number" value={form.priceAdult} onChange={(e) => updateForm({ priceAdult: e.target.value })} hint={`${form.adults || 0} adult(s)`} />
@@ -568,7 +585,7 @@ export default function BookingsPage() {
                     <Input label="Price per Infant" type="number" value={form.priceInfant} onChange={(e) => updateForm({ priceInfant: e.target.value })} hint={`${form.infants || 0} infant(s)`} />
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-500">Pricing is captured per service block below. Each service has its own currency (PKR/SAR); the total is converted to PKR at {pkrPerSar.toFixed(2)} PKR/SAR.</p>
+                  <p className="text-sm text-slate-500">Pricing is captured per service block below. Each service has its own currency (PKR/SAR); the total is converted to PKR at {rateOf(form).toFixed(2)} PKR/SAR.</p>
                 )}
 
                 <div className="mt-4 flex items-center justify-between rounded-lg bg-teal-50 px-4 py-3">
@@ -636,7 +653,7 @@ export default function BookingsPage() {
                               {form.priceMode === 'BREAKDOWN' && (
                                 <Input label={`Sale Price (${cur})`} type="number" value={String(item.amount || 0)} onChange={(e) => updateServiceItem(idx, { amount: parseFloat(e.target.value) || 0 })} />
                               )}
-                              <SearchableSelect label="Vendor (posting)" value={item.vendorId || ''} onChange={(v) => updateServiceItem(idx, { vendorId: v })} onSearch={(q) => searchVendors(q, vendorCategoryForType(item.serviceType))} selectedLabel={vendorLabel(item.vendorId)} options={[{ value: '', label: 'Auto-assign' }]} />
+                              <SearchableSelect label="Vendor (posting)" value={item.vendorId || ''} onChange={(v) => updateServiceItem(idx, { vendorId: v })} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(item.vendorId)} options={[{ value: '', label: 'Auto-assign' }]} />
                             </>
                           )}
 
@@ -807,7 +824,7 @@ function TicketFields({ item, currency, counts, priceMode, vendorLabel, onDetail
         </>
       )}
 
-      <SearchableSelect label="Vendor (posting)" value={item.vendorId || ''} onChange={onVendor} onSearch={(q) => searchVendors(q, 'TICKETING')} selectedLabel={vendorLabel(item.vendorId)} options={[{ value: '', label: 'Auto-assign' }]} />
+      <SearchableSelect label="Vendor (posting)" value={item.vendorId || ''} onChange={onVendor} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(item.vendorId)} options={[{ value: '', label: 'Auto-assign' }]} />
 
       {/* Per-passenger cost & sale */}
       <div className="md:col-span-2 lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 border-t border-slate-200 pt-3">
@@ -885,7 +902,6 @@ function ServiceRows({ item, currency, priceMode, vendorLabel, onAddRow, onRemov
   const isHotel = item.serviceType === 'HOTEL';
   const breakdown = priceMode === 'BREAKDOWN';
   const rows = item.rows || [];
-  const category = isHotel ? 'HOTEL' : 'TRANSPORT';
   return (
     <div className="mt-4 border-t border-slate-200 pt-4">
       <div className="flex items-center justify-between mb-2">
@@ -921,7 +937,7 @@ function ServiceRows({ item, currency, priceMode, vendorLabel, onAddRow, onRemov
                     {breakdown && (
                       <Input label={`Sale / Night (${currency})`} type="number" value={row.salePerNight || '0'} onChange={(e) => onUpdateRow(rowIdx, 'salePerNight', e.target.value)} hint={nights > 0 ? `Total: ${(toNum(row.salePerNight || '0') * nights * (toInt(row.numRooms || '1') || 1)).toLocaleString()} ${currency}` : undefined} />
                     )}
-                    <SearchableSelect label="Vendor (posting)" value={row.vendorId || ''} onChange={(v) => onUpdateRow(rowIdx, 'vendorId', v)} onSearch={(q) => searchVendors(q, category)} selectedLabel={vendorLabel(row.vendorId)} options={[{ value: '', label: 'Auto-assign' }]} />
+                    <SearchableSelect label="Vendor (posting)" value={row.vendorId || ''} onChange={(v) => onUpdateRow(rowIdx, 'vendorId', v)} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(row.vendorId)} options={[{ value: '', label: 'Auto-assign' }]} />
                   </>
                 ) : (
                   <>
@@ -932,7 +948,7 @@ function ServiceRows({ item, currency, priceMode, vendorLabel, onAddRow, onRemov
                     {breakdown && (
                       <Input label={`Sale (${currency})`} type="number" value={row.sale || '0'} onChange={(e) => onUpdateRow(rowIdx, 'sale', e.target.value)} />
                     )}
-                    <SearchableSelect label="Vendor (posting)" value={row.vendorId || ''} onChange={(v) => onUpdateRow(rowIdx, 'vendorId', v)} onSearch={(q) => searchVendors(q, category)} selectedLabel={vendorLabel(row.vendorId)} options={[{ value: '', label: 'Auto-assign' }]} />
+                    <SearchableSelect label="Vendor (posting)" value={row.vendorId || ''} onChange={(v) => onUpdateRow(rowIdx, 'vendorId', v)} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(row.vendorId)} options={[{ value: '', label: 'Auto-assign' }]} />
                   </>
                 )}
               </div>
