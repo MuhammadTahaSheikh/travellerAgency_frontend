@@ -23,6 +23,7 @@ interface VendorPosting {
   dueDate?: string;
   vendor?: Vendor;
   invoice?: { invoiceNumber: string; customer?: { firstName: string; lastName: string; companyName?: string; customerType?: string } };
+  booking?: { bookingNumber: string; guestName?: string };
 }
 
 export default function VendorPostingsPage() {
@@ -203,8 +204,11 @@ export default function VendorPostingsPage() {
                         <TableCell className="text-sm">
                           {p.invoice?.customer?.customerType === 'B2B'
                             ? p.invoice.customer.companyName
-                            : p.invoice ? `${p.invoice.customer?.firstName} ${p.invoice.customer?.lastName}` : '—'}
+                            : p.invoice
+                              ? `${p.invoice.customer?.firstName} ${p.invoice.customer?.lastName}`
+                              : p.booking?.guestName || '—'}
                           {p.invoice?.invoiceNumber && <span className="block text-xs text-slate-500">{p.invoice.invoiceNumber}</span>}
+                          {!p.invoice && p.booking?.bookingNumber && <span className="block text-xs text-slate-500">{p.booking.bookingNumber}</span>}
                         </TableCell>
                         <TableCell>{p.vendor?.name || '—'}</TableCell>
                         <TableCell>{formatCurrency(p.expectedCost, p.currency || 'PKR')}</TableCell>

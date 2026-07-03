@@ -19,6 +19,7 @@ import {
 } from '@/types';
 import { canCreateResource, canEditResource, canDeleteResource } from '@/lib/permissions';
 import { shareInvoiceViaWhatsApp } from '@/lib/whatsapp';
+import { useExchangeRate } from '@/contexts/ExchangeRateContext';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, SearchableSelect, Textarea } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -27,21 +28,29 @@ import { PageHeader, LoadingSpinner, Badge, formatCurrency, formatDate, EmptySta
 import { RowActions, confirmDelete } from '@/components/ui/RowActions';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
+type ServiceCurrency = 'PKR' | 'SAR';
+type Counts = { adults: number; children: number; infants: number };
+
 /** Service types that render as repeatable multi-row tables (hotel rooms, transport sectors). */
 const ROW_BASED_TYPES: BookingServiceItem['serviceType'][] = ['HOTEL', 'TRANSPORT'];
 
-const emptyHotelRow = (): ServiceRow => ({ hotelName: '', checkInDate: '', checkOutDate: '', roomType: '', numRooms: '1' });
-const emptyTransportRow = (): ServiceRow => ({ from: '', to: '', date: '', vehicleType: '' });
+const emptyHotelRow = (): ServiceRow => ({
+  hotelName: '', city: '', roomType: '', mealPlan: '', view: '',
+  checkInDate: '', checkOutDate: '', numRooms: '1',
+  costPerNight: '0', salePerNight: '0', vendorId: '',
+});
+const emptyTransportRow = (): ServiceRow => ({ sector: '', date: '', vehicleType: '', cost: '0', sale: '0', vendorId: '' });
+const emptyTicketSector = (): ServiceRow => ({ sector: '', date: '', baggage: '' });
 
 const defaultRowFor = (type: BookingServiceItem['serviceType']): ServiceRow =>
-  type === 'HOTEL' ? emptyHotelRow() : emptyTransportRow();
+  type === 'HOTEL' ? emptyHotelRow() : type === 'TRANSPORT' ? emptyTransportRow() : emptyTicketSector();
 
 const emptyServiceItem = (): BookingServiceItem => ({
   serviceType: 'TICKET',
   description: '',
   amount: 0,
   costAmount: 0,
-  details: {},
+  details: { currency: 'PKR', tripType: 'ONE_WAY' },
   rows: [],
 });
 
@@ -50,7 +59,7 @@ const emptyForm = {
   customerId: '',
   guestName: '',
   packageId: '',
-  currency: 'PKR' as 'PKR' | 'SAR',
+  currency: 'PKR' as ServiceCurrency,
   priceMode: 'DETERMINED' as PriceMode,
   totalAmount: '',
   adults: '1',
@@ -71,8 +80,87 @@ type FormState = typeof emptyForm;
 const toInt = (v: string) => parseInt(v, 10) || 0;
 const toNum = (v: string) => parseFloat(v) || 0;
 
+const nightsBetween = (a?: string, b?: string) => {
+  if (!a || !b) return 0;
+  const n = Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
+  return n > 0 ? n : 0;
+};
+
+const itemCurrency = (item: BookingServiceItem): ServiceCurrency =>
+  item.details?.currency === 'SAR' ? 'SAR' : 'PKR';
+
+const rowCostNative = (item: BookingServiceItem, row: ServiceRow) =>
+  item.serviceType === 'HOTEL'
+    ? toNum(row.costPerNight || '0') * nightsBetween(row.checkInDate, row.checkOutDate) * (toInt(row.numRooms || '1') || 1)
+    : toNum(row.cost || '0');
+
+const rowSaleNative = (item: BookingServiceItem, row: ServiceRow) =>
+  item.serviceType === 'HOTEL'
+    ? toNum(row.salePerNight || '0') * nightsBetween(row.checkInDate, row.checkOutDate) * (toInt(row.numRooms || '1') || 1)
+    : toNum(row.sale || '0');
+
+const serviceCostNative = (item: BookingServiceItem, c: Counts): number => {
+  switch (item.serviceType) {
+    case 'HOTEL':
+    case 'TRANSPORT':
+      return (item.rows || []).reduce((s, r) => s + rowCostNative(item, r), 0);
+    case 'TICKET':
+      return c.adults * toNum(item.details?.costAdult || '0') +
+        c.children * toNum(item.details?.costChild || '0') +
+        c.infants * toNum(item.details?.costInfant || '0');
+    default:
+      return toNum(String(item.costAmount ?? 0));
+  }
+};
+
+const serviceSaleNative = (item: BookingServiceItem, c: Counts): number => {
+  switch (item.serviceType) {
+    case 'HOTEL':
+    case 'TRANSPORT':
+      return (item.rows || []).reduce((s, r) => s + rowSaleNative(item, r), 0);
+    case 'TICKET':
+      return c.adults * toNum(item.details?.saleAdult || '0') +
+        c.children * toNum(item.details?.saleChild || '0') +
+        c.infants * toNum(item.details?.saleInfant || '0');
+    default:
+      return toNum(String(item.amount ?? 0));
+  }
+};
+
+const buildDescription = (item: BookingServiceItem): string => {
+  const d = item.details || {};
+  switch (item.serviceType) {
+    case 'VISA':
+      return `Visa${d.country ? ` - ${d.country}` : ''}${d.visaType ? ` (${d.visaType})` : ''}`;
+    case 'TICKET': {
+      const seg = d.tripType === 'MULTI_CITY'
+        ? (item.rows || []).map((r) => r.sector).filter(Boolean).join(', ')
+        : d.sector || '';
+      return `Ticket${seg ? ` - ${seg}` : ''}${d.airline ? ` (${d.airline})` : ''}`;
+    }
+    case 'HOTEL': {
+      const r = (item.rows || [])[0] || {};
+      return `Accommodation${r.hotelName ? ` - ${r.hotelName}` : ''}${r.city ? `, ${r.city}` : ''}`;
+    }
+    case 'TRANSPORT': {
+      const r = (item.rows || [])[0] || {};
+      return `Transport${r.sector ? ` - ${r.sector}` : ''}`;
+    }
+    default:
+      return `${item.serviceType} service`;
+  }
+};
+
+/** Normalises free text into a fixed origin-destination sector code (e.g. LHE-MED). */
+const formatSector = (raw: string) => {
+  const cleaned = raw.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6);
+  return cleaned.length <= 3 ? cleaned : `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
+};
+
 export default function BookingsPage() {
   const user = useSelector((state: RootState) => state.auth.user);
+  const { rate } = useExchangeRate();
+  const pkrPerSar = rate?.pkrPerSar || rate?.manualDefault || 1;
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,6 +174,11 @@ export default function BookingsPage() {
   const [appliedDates, setAppliedDates] = useState({ startDate: '', endDate: '' });
   const [loadError, setLoadError] = useState('');
   const formRef = useRef<HTMLDivElement>(null);
+
+  const toPkr = (native: number, currency: ServiceCurrency) =>
+    currency === 'SAR' ? native * pkrPerSar : native;
+
+  const vendorLabel = (id?: string) => (id ? vendors.find((v) => v.id === id)?.name || '' : '');
 
   const loadData = (dates = appliedDates) => {
     setLoading(true);
@@ -125,11 +218,15 @@ export default function BookingsPage() {
     }
   }, [showForm]);
 
-  const currencySuffix = (label: string) => `${label} (${form.currency})`;
+  const countsOf = (f: FormState): Counts => ({
+    adults: toInt(f.adults),
+    children: toInt(f.children),
+    infants: toInt(f.infants),
+  });
 
   /**
    * Determined mode charges the customer flat per-passenger category rates.
-   * Breakdown mode sums the sale price of every active service block.
+   * Breakdown mode sums the (currency-converted) sale price of every active service block.
    */
   const calcTotal = (next: FormState) => {
     if (next.priceMode === 'DETERMINED') {
@@ -139,8 +236,12 @@ export default function BookingsPage() {
         toInt(next.infants) * toNum(next.priceInfant);
       return String(total);
     }
-    const total = next.serviceItems.reduce((s, i) => s + Number(i.amount || 0), 0);
-    return String(total);
+    const counts = countsOf(next);
+    const total = next.serviceItems.reduce(
+      (s, item) => s + toPkr(serviceSaleNative(item, counts), itemCurrency(item)),
+      0
+    );
+    return String(Math.round(total));
   };
 
   const updateForm = (updates: Partial<FormState>) => {
@@ -173,6 +274,16 @@ export default function BookingsPage() {
   const updateServiceDetails = (idx: number, key: string, value: string) => {
     const item = form.serviceItems[idx];
     updateServiceItem(idx, { details: { ...item.details, [key]: value } });
+  };
+
+  const setTripType = (idx: number, value: string) => {
+    const item = form.serviceItems[idx];
+    const details = { ...item.details, tripType: value };
+    let rows = item.rows || [];
+    if (value === 'MULTI_CITY' && rows.length === 0) {
+      rows = [emptyTicketSector(), emptyTicketSector()];
+    }
+    updateServiceItem(idx, { details, rows });
   };
 
   const addServiceRow = (idx: number) => {
@@ -226,14 +337,19 @@ export default function BookingsPage() {
       status: b.status,
       serviceItems: b.serviceItems?.map((s) => {
         const rawDetails = (s.details as Record<string, unknown>) || {};
-        const { rows: persistedRows, ...restDetails } = rawDetails;
+        const { rows: persistedRows, costOriginal, saleOriginal, ...restDetails } = rawDetails as Record<string, unknown> & {
+          rows?: ServiceRow[]; costOriginal?: string; saleOriginal?: string;
+        };
+        // Prefer the originally-entered (native-currency) amounts; fall back to stored PKR values.
+        const nativeCost = costOriginal != null ? Number(costOriginal) : Number(s.costAmount || 0);
+        const nativeSale = saleOriginal != null ? Number(saleOriginal) : Number(s.amount || 0);
         return {
           serviceType: s.serviceType,
           description: s.description,
-          amount: s.amount,
-          costAmount: s.costAmount || 0,
+          amount: nativeSale,
+          costAmount: nativeCost,
           vendorId: s.vendorId,
-          details: restDetails as Record<string, string>,
+          details: (restDetails as Record<string, string>) || {},
           rows: (persistedRows as ServiceRow[]) || (s.rows as ServiceRow[]) || [],
         };
       }) || [],
@@ -251,8 +367,20 @@ export default function BookingsPage() {
       alert('Please enter the guest name for B2C bookings.');
       return;
     }
+    // Round trip tickets: return leg must depart after the outbound leg.
+    for (const item of form.serviceItems) {
+      if (item.serviceType === 'TICKET' && item.details?.tripType === 'ROUND_TRIP') {
+        const dep = item.details?.departureDate;
+        const ret = item.details?.returnDate;
+        if (dep && ret && new Date(ret) <= new Date(dep)) {
+          alert('Ticket return date must be after the departure date.');
+          return;
+        }
+      }
+    }
     setSaving(true);
-    const numTravelers = toInt(form.adults) + toInt(form.children) + toInt(form.infants);
+    const counts = countsOf(form);
+    const numTravelers = counts.adults + counts.children + counts.infants;
     const payload = {
       bookingType: form.bookingType,
       customerId: form.bookingType === 'B2B' ? form.customerId : undefined,
@@ -262,9 +390,9 @@ export default function BookingsPage() {
       priceMode: form.priceMode,
       totalAmount: parseFloat(form.totalAmount) || 0,
       numTravelers: numTravelers || 1,
-      adults: toInt(form.adults),
-      children: toInt(form.children),
-      infants: toInt(form.infants),
+      adults: counts.adults,
+      children: counts.children,
+      infants: counts.infants,
       priceAdult: form.priceMode === 'DETERMINED' ? toNum(form.priceAdult) : 0,
       priceChild: form.priceMode === 'DETERMINED' ? toNum(form.priceChild) : 0,
       priceInfant: form.priceMode === 'DETERMINED' ? toNum(form.priceInfant) : 0,
@@ -272,15 +400,34 @@ export default function BookingsPage() {
       returnDate: form.returnDate || undefined,
       notes: form.notes,
       status: form.status,
-      serviceItems: form.serviceItems.map((s) => ({
-        serviceType: s.serviceType,
-        description: s.description || `${s.serviceType} service`,
-        // Determined mode captures cost only; the customer-facing amount comes from per-passenger rates.
-        amount: form.priceMode === 'BREAKDOWN' ? Number(s.amount) : 0,
-        costAmount: Number(s.costAmount || 0),
-        vendorId: s.vendorId || undefined,
-        details: { ...(s.details || {}), ...(s.rows && s.rows.length ? { rows: s.rows } : {}) },
-      })),
+      serviceItems: form.serviceItems.map((s) => {
+        const cur = itemCurrency(s);
+        const costNative = serviceCostNative(s, counts);
+        const saleNative = serviceSaleNative(s, counts);
+        const rowBased = s.serviceType === 'HOTEL' || s.serviceType === 'TRANSPORT';
+        const rows = (s.rows || []).map((r) =>
+          rowBased
+            ? { ...r, costTotal: String(rowCostNative(s, r)), saleTotal: String(rowSaleNative(s, r)) }
+            : r
+        );
+        return {
+          serviceType: s.serviceType,
+          description: buildDescription(s),
+          // Amounts are persisted in PKR (base currency) so invoices/ledger stay consistent.
+          amount: form.priceMode === 'BREAKDOWN' ? Math.round(toPkr(saleNative, cur)) : 0,
+          costAmount: Math.round(toPkr(costNative, cur)),
+          // Row-based services carry their vendor per row, so no item-level vendor.
+          vendorId: rowBased ? undefined : s.vendorId || undefined,
+          details: {
+            ...(s.details || {}),
+            currency: cur,
+            exchangeRate: String(pkrPerSar),
+            costOriginal: String(costNative),
+            saleOriginal: String(saleNative),
+            ...(rows.length ? { rows } : {}),
+          },
+        };
+      }),
     };
     try {
       let invoice: Invoice | null | undefined;
@@ -398,40 +545,19 @@ export default function BookingsPage() {
               <div className="border border-slate-200 rounded-xl p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                   <h4 className="font-semibold text-slate-800">Pricing</h4>
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="inline-flex rounded-lg border border-slate-200 p-1 bg-slate-50">
-                      {([['DETERMINED', 'Determined Prices'], ['BREAKDOWN', 'With Breakdown']] as [PriceMode, string][]).map(([mode, label]) => (
-                        <button
-                          key={mode}
-                          type="button"
-                          onClick={() => updateForm({ priceMode: mode })}
-                          className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                            form.priceMode === mode ? 'bg-teal-600 text-white shadow' : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                    {form.priceMode === 'BREAKDOWN' && (
-                      <div className="inline-flex items-center gap-2">
-                        <span className="text-xs font-medium text-slate-500">Currency</span>
-                        <div className="inline-flex rounded-lg border border-slate-200 p-1 bg-slate-50">
-                          {(['PKR', 'SAR'] as const).map((c) => (
-                            <button
-                              key={c}
-                              type="button"
-                              onClick={() => updateForm({ currency: c })}
-                              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                form.currency === c ? 'bg-slate-900 text-white shadow' : 'text-slate-600 hover:text-slate-900'
-                              }`}
-                            >
-                              {c}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                  <div className="inline-flex rounded-lg border border-slate-200 p-1 bg-slate-50">
+                    {([['DETERMINED', 'Determined Prices'], ['BREAKDOWN', 'With Breakdown']] as [PriceMode, string][]).map(([mode, label]) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => updateForm({ priceMode: mode })}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                          form.priceMode === mode ? 'bg-teal-600 text-white shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -442,11 +568,11 @@ export default function BookingsPage() {
                     <Input label="Price per Infant" type="number" value={form.priceInfant} onChange={(e) => updateForm({ priceInfant: e.target.value })} hint={`${form.infants || 0} infant(s)`} />
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-500">Pricing is captured per service block below (cost &amp; sale) in {form.currency}.</p>
+                  <p className="text-sm text-slate-500">Pricing is captured per service block below. Each service has its own currency (PKR/SAR); the total is converted to PKR at {pkrPerSar.toFixed(2)} PKR/SAR.</p>
                 )}
 
                 <div className="mt-4 flex items-center justify-between rounded-lg bg-teal-50 px-4 py-3">
-                  <span className="text-sm font-medium text-teal-800">Total Amount</span>
+                  <span className="text-sm font-medium text-teal-800">Total Amount (PKR)</span>
                   <span className="text-lg font-bold text-teal-900">{formatCurrency(Number(form.totalAmount) || 0)}</span>
                 </div>
               </div>
@@ -461,7 +587,11 @@ export default function BookingsPage() {
                   <p className="text-sm text-slate-500">Add ticket, visa, accommodation, or transport services with custom details.</p>
                 ) : (
                   <div className="space-y-4">
-                    {form.serviceItems.map((item, idx) => (
+                    {form.serviceItems.map((item, idx) => {
+                      const cur = itemCurrency(item);
+                      const rowBased = ROW_BASED_TYPES.includes(item.serviceType);
+                      const showItemPricing = item.serviceType === 'VISA';
+                      return (
                       <div key={idx} className="p-4 border border-slate-200 rounded-xl bg-slate-50">
                         <div className="flex justify-between items-start mb-3">
                           <span className="text-sm font-medium text-teal-700">Service #{idx + 1}</span>
@@ -474,27 +604,39 @@ export default function BookingsPage() {
                             { value: 'HOTEL', label: 'Accommodation' },
                             { value: 'TRANSPORT', label: 'Transport' },
                           ]} />
-                          <Input label="Description" value={item.description} onChange={(e) => updateServiceItem(idx, { description: e.target.value })} placeholder="e.g. Dubai Flight" />
 
-                          {/* Cost price is always captured; sale price only in breakdown mode. */}
-                          <Input label={currencySuffix('Cost Price')} type="number" value={String(item.costAmount || 0)} onChange={(e) => updateServiceItem(idx, { costAmount: parseFloat(e.target.value) || 0 })} />
-                          {form.priceMode === 'BREAKDOWN' && (
-                            <Input label={currencySuffix('Sale Price')} type="number" value={String(item.amount)} onChange={(e) => updateServiceItem(idx, { amount: parseFloat(e.target.value) || 0 })} />
-                          )}
-                          <SearchableSelect label="Vendor (posting)" value={item.vendorId || ''} onChange={(v) => updateServiceItem(idx, { vendorId: v })} onSearch={(q) => searchVendors(q, vendorCategoryForType(item.serviceType))} options={[{ value: '', label: 'Auto-assign' }]} />
+                          {/* Per-service currency */}
+                          <div className="space-y-1.5">
+                            <label className="block text-sm font-medium text-slate-700">Currency</label>
+                            <div className="inline-flex rounded-xl border border-slate-200 p-1 bg-white">
+                              {(['PKR', 'SAR'] as ServiceCurrency[]).map((c) => (
+                                <button
+                                  key={c}
+                                  type="button"
+                                  onClick={() => updateServiceDetails(idx, 'currency', c)}
+                                  className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                    cur === c ? 'bg-slate-900 text-white shadow' : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  {c}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
 
+                          {/* Ticket: airline shifted up (replaces description) */}
                           {item.serviceType === 'TICKET' && (
+                            <Input label="Airline" value={item.details?.airline || ''} onChange={(e) => updateServiceDetails(idx, 'airline', e.target.value)} placeholder="e.g. Saudia" />
+                          )}
+
+                          {/* Visa keeps item-level cost/sale/vendor */}
+                          {showItemPricing && (
                             <>
-                              <Select label="Trip Type" value={item.details?.tripType || 'ONE_WAY'} onChange={(e) => updateServiceDetails(idx, 'tripType', e.target.value)} options={[
-                                { value: 'ONE_WAY', label: 'One Way' },
-                                { value: 'ROUND_TRIP', label: 'Round Trip' },
-                              ]} />
-                              <Input label="Origin" value={item.details?.origin || ''} onChange={(e) => updateServiceDetails(idx, 'origin', e.target.value)} />
-                              <Input label="Destination" value={item.details?.destination || ''} onChange={(e) => updateServiceDetails(idx, 'destination', e.target.value)} />
-                              <Input label="Airline" value={item.details?.airline || ''} onChange={(e) => updateServiceDetails(idx, 'airline', e.target.value)} />
-                              {item.details?.tripType === 'ROUND_TRIP' && (
-                                <Input label="Return Date" type="date" value={item.details?.returnDate || ''} onChange={(e) => updateServiceDetails(idx, 'returnDate', e.target.value)} />
+                              <Input label={`Cost Price (${cur})`} type="number" value={String(item.costAmount || 0)} onChange={(e) => updateServiceItem(idx, { costAmount: parseFloat(e.target.value) || 0 })} />
+                              {form.priceMode === 'BREAKDOWN' && (
+                                <Input label={`Sale Price (${cur})`} type="number" value={String(item.amount || 0)} onChange={(e) => updateServiceItem(idx, { amount: parseFloat(e.target.value) || 0 })} />
                               )}
+                              <SearchableSelect label="Vendor (posting)" value={item.vendorId || ''} onChange={(v) => updateServiceItem(idx, { vendorId: v })} onSearch={(q) => searchVendors(q, vendorCategoryForType(item.serviceType))} selectedLabel={vendorLabel(item.vendorId)} options={[{ value: '', label: 'Auto-assign' }]} />
                             </>
                           )}
 
@@ -502,22 +644,47 @@ export default function BookingsPage() {
                             <>
                               <Input label="Country" value={item.details?.country || ''} onChange={(e) => updateServiceDetails(idx, 'country', e.target.value)} />
                               <Input label="Visa Type" value={item.details?.visaType || ''} onChange={(e) => updateServiceDetails(idx, 'visaType', e.target.value)} placeholder="Tourist, Business..." />
-                              <Input label="Processing Days" value={item.details?.processingDays || ''} onChange={(e) => updateServiceDetails(idx, 'processingDays', e.target.value)} />
                             </>
+                          )}
+
+                          {item.serviceType === 'TICKET' && (
+                            <TicketFields
+                              item={item}
+                              idx={idx}
+                              currency={cur}
+                              counts={countsOf(form)}
+                              priceMode={form.priceMode}
+                              vendorLabel={vendorLabel}
+                              onDetail={(key, value) => updateServiceDetails(idx, key, value)}
+                              onTripType={(v) => setTripType(idx, v)}
+                              onVendor={(v) => updateServiceItem(idx, { vendorId: v })}
+                            />
                           )}
                         </div>
 
-                        {ROW_BASED_TYPES.includes(item.serviceType) && (
+                        {rowBased && (
                           <ServiceRows
                             item={item}
-                            idx={idx}
+                            currency={cur}
+                            priceMode={form.priceMode}
+                            vendorLabel={vendorLabel}
+                            onAddRow={() => addServiceRow(idx)}
+                            onRemoveRow={(rowIdx) => removeServiceRow(idx, rowIdx)}
+                            onUpdateRow={(rowIdx, key, value) => updateServiceRow(idx, rowIdx, key, value)}
+                          />
+                        )}
+
+                        {item.serviceType === 'TICKET' && item.details?.tripType === 'MULTI_CITY' && (
+                          <TicketSectors
+                            item={item}
                             onAddRow={() => addServiceRow(idx)}
                             onRemoveRow={(rowIdx) => removeServiceRow(idx, rowIdx)}
                             onUpdateRow={(rowIdx, key, value) => updateServiceRow(idx, rowIdx, key, value)}
                           />
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -596,31 +763,145 @@ export default function BookingsPage() {
   );
 }
 
-interface ServiceRowsProps {
+interface TicketFieldsProps {
   item: BookingServiceItem;
   idx: number;
+  currency: ServiceCurrency;
+  counts: Counts;
+  priceMode: PriceMode;
+  vendorLabel: (id?: string) => string;
+  onDetail: (key: string, value: string) => void;
+  onTripType: (value: string) => void;
+  onVendor: (value: string) => void;
+}
+
+function TicketFields({ item, currency, counts, priceMode, vendorLabel, onDetail, onTripType, onVendor }: TicketFieldsProps) {
+  const d = item.details || {};
+  const tripType = d.tripType || 'ONE_WAY';
+  const breakdown = priceMode === 'BREAKDOWN';
+  return (
+    <>
+      <Select label="Trip Type" value={tripType} onChange={(e) => onTripType(e.target.value)} options={[
+        { value: 'ONE_WAY', label: 'One Way' },
+        { value: 'ROUND_TRIP', label: 'Round Trip' },
+        { value: 'MULTI_CITY', label: 'Multi City' },
+      ]} />
+
+      {tripType !== 'MULTI_CITY' && (
+        <Input label="Sector" value={d.sector || ''} onChange={(e) => onDetail('sector', formatSector(e.target.value))} placeholder="LHE-MED" />
+      )}
+
+      {tripType === 'ONE_WAY' && (
+        <>
+          <Input label="Departure Date" type="date" value={d.departureDate || ''} onChange={(e) => onDetail('departureDate', e.target.value)} />
+          <Input label="Baggage" value={d.baggage || ''} onChange={(e) => onDetail('baggage', e.target.value)} placeholder="e.g. 30kg" />
+        </>
+      )}
+
+      {tripType === 'ROUND_TRIP' && (
+        <>
+          <Input label="Departure Date" type="date" value={d.departureDate || ''} onChange={(e) => onDetail('departureDate', e.target.value)} />
+          <Input label="Return Date" type="date" value={d.returnDate || ''} min={d.departureDate || undefined} onChange={(e) => onDetail('returnDate', e.target.value)} />
+          <Input label="Baggage (Outbound)" value={d.baggageOutbound || ''} onChange={(e) => onDetail('baggageOutbound', e.target.value)} placeholder="e.g. 30kg" />
+          <Input label="Baggage (Inbound)" value={d.baggageInbound || ''} onChange={(e) => onDetail('baggageInbound', e.target.value)} placeholder="e.g. 30kg" />
+        </>
+      )}
+
+      <SearchableSelect label="Vendor (posting)" value={item.vendorId || ''} onChange={onVendor} onSearch={(q) => searchVendors(q, 'TICKETING')} selectedLabel={vendorLabel(item.vendorId)} options={[{ value: '', label: 'Auto-assign' }]} />
+
+      {/* Per-passenger cost & sale */}
+      <div className="md:col-span-2 lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 border-t border-slate-200 pt-3">
+        <div className="col-span-full text-xs font-semibold text-slate-500 uppercase">Per-Passenger Pricing ({currency})</div>
+        <Input label={`Cost / Adult (${currency})`} type="number" value={d.costAdult || '0'} onChange={(e) => onDetail('costAdult', e.target.value)} hint={`${counts.adults} adult(s)`} />
+        {breakdown && <Input label={`Sale / Adult (${currency})`} type="number" value={d.saleAdult || '0'} onChange={(e) => onDetail('saleAdult', e.target.value)} />}
+        {counts.children > 0 && (
+          <>
+            <Input label={`Cost / Child (${currency})`} type="number" value={d.costChild || '0'} onChange={(e) => onDetail('costChild', e.target.value)} hint={`${counts.children} child(ren)`} />
+            {breakdown && <Input label={`Sale / Child (${currency})`} type="number" value={d.saleChild || '0'} onChange={(e) => onDetail('saleChild', e.target.value)} />}
+          </>
+        )}
+        {counts.infants > 0 && (
+          <>
+            <Input label={`Cost / Infant (${currency})`} type="number" value={d.costInfant || '0'} onChange={(e) => onDetail('costInfant', e.target.value)} hint={`${counts.infants} infant(s)`} />
+            {breakdown && <Input label={`Sale / Infant (${currency})`} type="number" value={d.saleInfant || '0'} onChange={(e) => onDetail('saleInfant', e.target.value)} />}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+interface TicketSectorsProps {
+  item: BookingServiceItem;
   onAddRow: () => void;
   onRemoveRow: (rowIdx: number) => void;
   onUpdateRow: (rowIdx: number, key: string, value: string) => void;
 }
 
-function ServiceRows({ item, onAddRow, onRemoveRow, onUpdateRow }: ServiceRowsProps) {
-  const isHotel = item.serviceType === 'HOTEL';
+function TicketSectors({ item, onAddRow, onRemoveRow, onUpdateRow }: TicketSectorsProps) {
   const rows = item.rows || [];
   return (
     <div className="mt-4 border-t border-slate-200 pt-4">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-slate-700">{isHotel ? 'Hotel Rooms' : 'Transport Sectors'}</span>
+        <span className="text-sm font-medium text-slate-700">Flight Sectors (Multi City)</span>
+        <Button type="button" variant="secondary" onClick={onAddRow}><Plus className="w-4 h-4 mr-1" />Add Flight</Button>
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-xs text-slate-400">No flights yet — click &quot;Add Flight&quot; to begin.</p>
+      ) : (
+        <div className="space-y-3">
+          {rows.map((row, rowIdx) => (
+            <div key={rowIdx} className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-slate-500">Flight #{rowIdx + 1}</span>
+                <button type="button" onClick={() => onRemoveRow(rowIdx)} className="text-red-500 hover:text-red-700 flex items-center gap-1 text-xs">
+                  <Trash2 className="w-3.5 h-3.5" />Remove
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <Input label="Sector" value={row.sector || ''} onChange={(e) => onUpdateRow(rowIdx, 'sector', formatSector(e.target.value))} placeholder="LHE-JED" />
+                <Input label="Date" type="date" value={row.date || ''} onChange={(e) => onUpdateRow(rowIdx, 'date', e.target.value)} />
+                <Input label="Baggage" value={row.baggage || ''} onChange={(e) => onUpdateRow(rowIdx, 'baggage', e.target.value)} placeholder="e.g. 30kg" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ServiceRowsProps {
+  item: BookingServiceItem;
+  currency: ServiceCurrency;
+  priceMode: PriceMode;
+  vendorLabel: (id?: string) => string;
+  onAddRow: () => void;
+  onRemoveRow: (rowIdx: number) => void;
+  onUpdateRow: (rowIdx: number, key: string, value: string) => void;
+}
+
+function ServiceRows({ item, currency, priceMode, vendorLabel, onAddRow, onRemoveRow, onUpdateRow }: ServiceRowsProps) {
+  const isHotel = item.serviceType === 'HOTEL';
+  const breakdown = priceMode === 'BREAKDOWN';
+  const rows = item.rows || [];
+  const category = isHotel ? 'HOTEL' : 'TRANSPORT';
+  return (
+    <div className="mt-4 border-t border-slate-200 pt-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium text-slate-700">{isHotel ? 'Hotel Rooms (per sector / per night)' : 'Transport Sectors'}</span>
         <Button type="button" variant="secondary" onClick={onAddRow}><Plus className="w-4 h-4 mr-1" />Add Row</Button>
       </div>
       {rows.length === 0 ? (
         <p className="text-xs text-slate-400">No rows yet — click &quot;Add Row&quot; to begin.</p>
       ) : (
         <div className="space-y-3">
-          {rows.map((row, rowIdx) => (
+          {rows.map((row, rowIdx) => {
+            const nights = isHotel ? nightsBetween(row.checkInDate, row.checkOutDate) : 0;
+            return (
             <div key={rowIdx} className="rounded-lg border border-slate-200 bg-white p-3">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-slate-500">Row #{rowIdx + 1}</span>
+                <span className="text-xs font-semibold text-slate-500">Row #{rowIdx + 1}{isHotel && nights > 0 ? ` · ${nights} night(s)` : ''}</span>
                 <button type="button" onClick={() => onRemoveRow(rowIdx)} className="text-red-500 hover:text-red-700 flex items-center gap-1 text-xs">
                   <Trash2 className="w-3.5 h-3.5" />Delete Row
                 </button>
@@ -629,22 +910,35 @@ function ServiceRows({ item, onAddRow, onRemoveRow, onUpdateRow }: ServiceRowsPr
                 {isHotel ? (
                   <>
                     <Input label="Hotel Name" value={row.hotelName || ''} onChange={(e) => onUpdateRow(rowIdx, 'hotelName', e.target.value)} />
+                    <Input label="City" value={row.city || ''} onChange={(e) => onUpdateRow(rowIdx, 'city', e.target.value)} placeholder="Makkah, Madinah..." />
                     <Input label="Room Type" value={row.roomType || ''} onChange={(e) => onUpdateRow(rowIdx, 'roomType', e.target.value)} />
+                    <Input label="Meal Plan" value={row.mealPlan || ''} onChange={(e) => onUpdateRow(rowIdx, 'mealPlan', e.target.value)} placeholder="Room only, BB, HB..." />
+                    <Input label="View" value={row.view || ''} onChange={(e) => onUpdateRow(rowIdx, 'view', e.target.value)} placeholder="Haram view, City view..." />
                     <Input label="Rooms" type="number" min={1} value={row.numRooms || '1'} onChange={(e) => onUpdateRow(rowIdx, 'numRooms', e.target.value)} />
                     <Input label="Check-in Date" type="date" value={row.checkInDate || ''} onChange={(e) => onUpdateRow(rowIdx, 'checkInDate', e.target.value)} />
-                    <Input label="Check-out Date" type="date" value={row.checkOutDate || ''} onChange={(e) => onUpdateRow(rowIdx, 'checkOutDate', e.target.value)} />
+                    <Input label="Check-out Date" type="date" value={row.checkOutDate || ''} min={row.checkInDate || undefined} onChange={(e) => onUpdateRow(rowIdx, 'checkOutDate', e.target.value)} />
+                    <Input label={`Cost / Night (${currency})`} type="number" value={row.costPerNight || '0'} onChange={(e) => onUpdateRow(rowIdx, 'costPerNight', e.target.value)} hint={nights > 0 ? `Total: ${(toNum(row.costPerNight || '0') * nights * (toInt(row.numRooms || '1') || 1)).toLocaleString()} ${currency}` : undefined} />
+                    {breakdown && (
+                      <Input label={`Sale / Night (${currency})`} type="number" value={row.salePerNight || '0'} onChange={(e) => onUpdateRow(rowIdx, 'salePerNight', e.target.value)} hint={nights > 0 ? `Total: ${(toNum(row.salePerNight || '0') * nights * (toInt(row.numRooms || '1') || 1)).toLocaleString()} ${currency}` : undefined} />
+                    )}
+                    <SearchableSelect label="Vendor (posting)" value={row.vendorId || ''} onChange={(v) => onUpdateRow(rowIdx, 'vendorId', v)} onSearch={(q) => searchVendors(q, category)} selectedLabel={vendorLabel(row.vendorId)} options={[{ value: '', label: 'Auto-assign' }]} />
                   </>
                 ) : (
                   <>
-                    <Input label="From" value={row.from || ''} onChange={(e) => onUpdateRow(rowIdx, 'from', e.target.value)} />
-                    <Input label="To" value={row.to || ''} onChange={(e) => onUpdateRow(rowIdx, 'to', e.target.value)} />
+                    <Input label="Sector" value={row.sector || ''} onChange={(e) => onUpdateRow(rowIdx, 'sector', e.target.value)} placeholder="e.g. Jeddah - Makkah" />
                     <Input label="Date" type="date" value={row.date || ''} onChange={(e) => onUpdateRow(rowIdx, 'date', e.target.value)} />
                     <Input label="Vehicle Type" value={row.vehicleType || ''} onChange={(e) => onUpdateRow(rowIdx, 'vehicleType', e.target.value)} />
+                    <Input label={`Cost (${currency})`} type="number" value={row.cost || '0'} onChange={(e) => onUpdateRow(rowIdx, 'cost', e.target.value)} />
+                    {breakdown && (
+                      <Input label={`Sale (${currency})`} type="number" value={row.sale || '0'} onChange={(e) => onUpdateRow(rowIdx, 'sale', e.target.value)} />
+                    )}
+                    <SearchableSelect label="Vendor (posting)" value={row.vendorId || ''} onChange={(v) => onUpdateRow(rowIdx, 'vendorId', v)} onSearch={(q) => searchVendors(q, category)} selectedLabel={vendorLabel(row.vendorId)} options={[{ value: '', label: 'Auto-assign' }]} />
                   </>
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
