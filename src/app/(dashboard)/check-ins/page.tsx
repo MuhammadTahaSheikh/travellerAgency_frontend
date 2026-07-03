@@ -28,7 +28,7 @@ export default function CheckInsPage() {
   const [customerId, setCustomerId] = useState('');
   const [vendorId, setVendorId] = useState('');
   const [b2bOnly, setB2bOnly] = useState(false);
-  const [upcomingOnly, setUpcomingOnly] = useState(true);
+  const [upcomingOnly, setUpcomingOnly] = useState(false);
   const [form, setForm] = useState({
     bookingId: '',
     scheduleType: 'HOTEL',
