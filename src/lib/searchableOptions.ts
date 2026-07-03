@@ -33,7 +33,7 @@ export async function searchVendors(query: string, category?: string): Promise<S
   const res = await api.get<ApiResponse<Vendor[]>>(`/vendors?search=${encode(query)}&limit=50${cat}`);
   return (res.data || []).map((v) => ({
     value: v.id,
-    label: `${v.name} (${v.category})`,
+    label: v.vendorCode ? `${v.vendorCode} · ${v.name}` : v.name,
   }));
 }
 

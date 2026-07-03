@@ -66,8 +66,9 @@ export type PriceMode = 'DETERMINED' | 'BREAKDOWN';
 
 export interface Vendor {
   id: string;
+  vendorCode?: string;
   name: string;
-  category: 'HOTEL' | 'VISA' | 'TICKETING' | 'OTHER';
+  category: 'HOTEL' | 'VISA' | 'TICKETING' | 'TRANSPORT' | 'OTHER';
   contactPerson?: string;
   email?: string;
   phone?: string;

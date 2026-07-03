@@ -19,11 +19,12 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { PageHeader, LoadingSpinner, formatCurrency, EmptyState } from '@/components/ui/Common';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
-const emptyForm = { name: '', category: 'HOTEL', contactPerson: '', email: '', phone: '' };
+const emptyForm = { name: '', contactPerson: '', email: '', phone: '' };
 
 type VendorPayable = {
   vendorId: string;
   vendorName: string;
+  vendorCode?: string;
   category: string;
   totalAllocated: number;
   totalPaid: number;
@@ -201,13 +202,6 @@ export default function VendorsPage() {
           <CardBody>
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <Input label="Vendor Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-              <Select label="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} options={[
-                { value: 'HOTEL', label: 'Hotel' },
-                { value: 'VISA', label: 'Visa' },
-                { value: 'TICKETING', label: 'Ticketing' },
-                { value: 'TRANSPORT', label: 'Transport' },
-                { value: 'OTHER', label: 'Other' },
-              ]} />
               <Input label="Contact Person" value={form.contactPerson} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} />
               <Input label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               <Input label="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
@@ -233,7 +227,7 @@ export default function VendorsPage() {
                     <TableHead>
                       <tr>
                         <TableHeaderCell>Vendor</TableHeaderCell>
-                        <TableHeaderCell>Category</TableHeaderCell>
+                        <TableHeaderCell>Code</TableHeaderCell>
                         <TableHeaderCell>Allocated</TableHeaderCell>
                         <TableHeaderCell>Paid</TableHeaderCell>
                         <TableHeaderCell>Outstanding</TableHeaderCell>
@@ -243,7 +237,7 @@ export default function VendorsPage() {
                       {payables.map((p) => (
                         <TableRow key={p.vendorName}>
                           <TableCell className="font-medium">{p.vendorName}</TableCell>
-                          <TableCell>{p.category}</TableCell>
+                          <TableCell>{p.vendorCode || '—'}</TableCell>
                           <TableCell>{formatCurrency(p.totalAllocated)}</TableCell>
                           <TableCell>{formatCurrency(p.totalPaid)}</TableCell>
                           <TableCell className="font-semibold text-amber-700">{formatCurrency(p.outstanding)}</TableCell>
@@ -266,8 +260,8 @@ export default function VendorsPage() {
                 <Table>
                   <TableHead>
                     <tr>
+                      <TableHeaderCell>Code</TableHeaderCell>
                       <TableHeaderCell>Name</TableHeaderCell>
-                      <TableHeaderCell>Category</TableHeaderCell>
                       <TableHeaderCell>Contact</TableHeaderCell>
                       <TableHeaderCell>Outstanding</TableHeaderCell>
                       <TableHeaderCell>Ledger Balance</TableHeaderCell>
@@ -282,8 +276,8 @@ export default function VendorsPage() {
                       const inSync = Math.abs(ledger + outstanding) < 0.01;
                       return (
                         <TableRow key={v.id}>
-                          <TableCell className="font-medium">{v.name}</TableCell>
-                          <TableCell>{v.category}</TableCell>
+                          <TableCell className="font-medium text-slate-900">{v.vendorCode || '—'}</TableCell>
+                          <TableCell>{v.name}</TableCell>
                           <TableCell>{v.contactPerson || v.phone || '—'}</TableCell>
                           <TableCell className="font-semibold text-amber-700">{formatCurrency(outstanding)}</TableCell>
                           <TableCell className={inSync ? '' : 'text-red-600'}>
