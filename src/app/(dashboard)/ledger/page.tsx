@@ -91,37 +91,31 @@ function AccountCard({
   const bal = currency === 'SAR' ? Number((acc as Account & { balanceSar?: number }).balanceSar || 0) : Number((acc as Account & { balancePkr?: number }).balancePkr ?? acc.balance);
 
   return (
-    <div className="relative">
-      <div className="hover:shadow-md transition-shadow cursor-pointer" onClick={onView} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onView?.()}>
-        <Card className="h-full">
-          <CardBody>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                {acc.type}
-              </span>
-              <h3 className="font-bold text-slate-900 mt-2 truncate">{acc.name}</h3>
-              <p className="text-xs text-slate-400 mt-0.5 truncate">{subtitle}</p>
-            </div>
-            <div className="text-right shrink-0">
-              <p className={`text-lg sm:text-xl font-bold ${bal >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
-                {formatCurrency(bal, currency)}
-              </p>
-            </div>
+    <div className="hover:shadow-md transition-shadow cursor-pointer" onClick={onView} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onView?.()}>
+      <Card className="h-full">
+        <CardBody>
+          <div className="flex items-start justify-between gap-2">
+            <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+              {acc.type}
+            </span>
+            {showManage && (
+              <div className="flex gap-1 shrink-0">
+                {onEdit && (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} className="text-xs text-teal-700 hover:text-teal-900 hover:bg-teal-50 px-2 py-1 rounded-lg border border-teal-100">Edit</button>
+                )}
+                {onDeactivate && (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); onDeactivate(); }} className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-lg border border-red-100">Close</button>
+                )}
+              </div>
+            )}
           </div>
-          </CardBody>
-        </Card>
-      </div>
-      {showManage && (
-        <div className="absolute top-2 right-2 flex gap-1">
-          {onEdit && (
-            <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} className="text-xs text-teal-700 hover:text-teal-900 bg-white/90 px-2 py-1 rounded-lg border border-teal-100">Edit</button>
-          )}
-          {onDeactivate && (
-            <button type="button" onClick={(e) => { e.stopPropagation(); onDeactivate(); }} className="text-xs text-red-500 hover:text-red-700 bg-white/90 px-2 py-1 rounded-lg border border-red-100">Close</button>
-          )}
-        </div>
-      )}
+          <h3 className="font-bold text-slate-900 mt-2 truncate">{acc.name}</h3>
+          <p className="text-xs text-slate-400 mt-0.5 truncate">{subtitle}</p>
+          <p className={`mt-3 text-xl sm:text-2xl font-bold tabular-nums break-words ${bal >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
+            {formatCurrency(bal, currency)}
+          </p>
+        </CardBody>
+      </Card>
     </div>
   );
 }
