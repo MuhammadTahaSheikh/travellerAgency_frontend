@@ -665,7 +665,7 @@ export default function BookingsPage() {
                               {form.priceMode === 'BREAKDOWN' && (
                                 <Input label={`Sale Price (${cur})`} type="number" value={String(item.amount || 0)} onChange={(e) => updateServiceItem(idx, { amount: parseFloat(e.target.value) || 0 })} />
                               )}
-                              <SearchableSelect label="Vendor (posting)" value={item.vendorId || ''} onChange={(v) => updateServiceItem(idx, { vendorId: v })} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(item.vendorId)} options={[{ value: '', label: 'Auto-assign' }]} />
+                              <SearchableSelect label="Vendor (posting)" value={item.vendorId || ''} onChange={(v) => updateServiceItem(idx, { vendorId: v })} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(item.vendorId)} options={[{ value: '', label: 'Select vendor' }]} />
                             </>
                           )}
 
@@ -904,7 +904,7 @@ function TicketFields({ item, currency, counts, priceMode, vendorLabel, onDetail
         </>
       )}
 
-      <SearchableSelect label="Vendor (posting)" value={item.vendorId || ''} onChange={onVendor} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(item.vendorId)} options={[{ value: '', label: 'Auto-assign' }]} />
+      <SearchableSelect label="Vendor (posting)" value={item.vendorId || ''} onChange={onVendor} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(item.vendorId)} options={[{ value: '', label: 'Select vendor' }]} />
 
       {/* Per-passenger cost & sale */}
       <div className="md:col-span-2 lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 border-t border-slate-200 pt-3">
@@ -1017,7 +1017,7 @@ function ServiceRows({ item, currency, priceMode, vendorLabel, onAddRow, onRemov
                     {breakdown && (
                       <Input label={`Sale / Night (${currency})`} type="number" value={row.salePerNight || '0'} onChange={(e) => onUpdateRow(rowIdx, 'salePerNight', e.target.value)} hint={nights > 0 ? `Total: ${(toNum(row.salePerNight || '0') * nights * (toInt(row.numRooms || '1') || 1)).toLocaleString()} ${currency}` : undefined} />
                     )}
-                    <SearchableSelect label="Vendor (posting)" value={row.vendorId || ''} onChange={(v) => onUpdateRow(rowIdx, 'vendorId', v)} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(row.vendorId)} options={[{ value: '', label: 'Auto-assign' }]} />
+                    <SearchableSelect label="Vendor (posting)" value={row.vendorId || ''} onChange={(v) => onUpdateRow(rowIdx, 'vendorId', v)} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(row.vendorId)} options={[{ value: '', label: 'Select vendor' }]} />
                   </>
                 ) : (
                   <>
@@ -1028,7 +1028,7 @@ function ServiceRows({ item, currency, priceMode, vendorLabel, onAddRow, onRemov
                     {breakdown && (
                       <Input label={`Sale (${currency})`} type="number" value={row.sale || '0'} onChange={(e) => onUpdateRow(rowIdx, 'sale', e.target.value)} />
                     )}
-                    <SearchableSelect label="Vendor (posting)" value={row.vendorId || ''} onChange={(v) => onUpdateRow(rowIdx, 'vendorId', v)} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(row.vendorId)} options={[{ value: '', label: 'Auto-assign' }]} />
+                    <SearchableSelect label="Vendor (posting)" value={row.vendorId || ''} onChange={(v) => onUpdateRow(rowIdx, 'vendorId', v)} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(row.vendorId)} options={[{ value: '', label: 'Select vendor' }]} />
                   </>
                 )}
               </div>

@@ -119,11 +119,15 @@ export function BookingPostingModal({ booking, open, onClose, onSuccess, user }:
                         </span>
                       </div>
                       {posting.status === 'PENDING' && (
-                        <div className="flex gap-2 shrink-0">
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          {!posting.vendor?.id && (
+                            <p className="text-xs text-amber-700">Assign vendor on Vendor Postings before posting</p>
+                          )}
                           {directPost ? (
                             <Button
                               type="button"
                               loading={acting === posting.id}
+                              disabled={!posting.vendor?.id}
                               onClick={() => handleDirectPost(posting)}
                             >
                               Post Now
@@ -133,6 +137,7 @@ export function BookingPostingModal({ booking, open, onClose, onSuccess, user }:
                               type="button"
                               variant="secondary"
                               loading={acting === posting.id}
+                              disabled={!posting.vendor?.id}
                               onClick={() => handleRequestPosting(posting)}
                             >
                               Request Posting

@@ -87,6 +87,10 @@ export default function VendorPostingsPage() {
   };
 
   const handleConfirm = async (p: VendorPosting) => {
+    if (!p.vendor?.id) {
+      alert('Please assign a vendor before posting to ledger.');
+      return;
+    }
     const actual = prompt('Actual cost (leave blank to use expected):', String(p.expectedCost));
     if (actual === null) return;
     try {
