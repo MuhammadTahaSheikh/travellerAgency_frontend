@@ -82,11 +82,9 @@ function AccountCard({
   onDeactivate?: () => void;
   showManage?: boolean;
 }) {
-  const displayName = acc.vendor ? formatVendorDisplay(acc.vendor) : acc.name;
+  const displayName = formatAccountDisplay(acc);
   const subtitle =
-    acc.customer ? (acc.customer as { companyName?: string; firstName?: string; lastName?: string; tradePartnerId?: string }).tradePartnerId
-      ? `${(acc.customer as { tradePartnerId?: string }).tradePartnerId}`
-      : `${acc.customer?.firstName} ${acc.customer?.lastName}` :
+    acc.customer ? acc.code :
     acc.vendor ? acc.vendor.category :
     acc.employee ? `${acc.employee.firstName} ${acc.employee.lastName}` :
     acc.code;
