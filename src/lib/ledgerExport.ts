@@ -16,11 +16,19 @@ export function exportLedgerCsv(
   currency: 'PKR' | 'SAR',
   filename: string,
   includeAccount = false,
+  includeBalance = true,
 ) {
   assertRows(rows);
-  const headers = includeAccount
-    ? ['Date', 'Entry', 'Account', 'Description', 'Debit', 'Credit', 'Balance', 'Currency']
-    : ['Date', 'Entry', 'Description', 'Debit', 'Credit', 'Balance', 'Currency'];
+  const headers = [
+    'Date',
+    'Entry',
+    ...(includeAccount ? ['Account', 'Other Side'] : []),
+    'Description',
+    'Debit',
+    'Credit',
+    ...(includeBalance ? ['Balance'] : []),
+    'Currency',
+  ];
 
   const data = rows.map((row) => {
     const balance = balanceForRow(row, currency);
@@ -28,14 +36,16 @@ export function exportLedgerCsv(
       formatDate(row.journalEntry.date),
       row.journalEntry.entryNumber,
     ];
-    if (includeAccount) cells.push(row.account?.name || '');
+    if (includeAccount) {
+      cells.push(row.account?.name || '', row.counterAccount?.name || '');
+    }
     cells.push(
       row.description || row.journalEntry.description || '',
       Number(row.debit) > 0 ? Number(row.debit) : '',
       Number(row.credit) > 0 ? Number(row.credit) : '',
-      balance != null ? Number(balance) : '',
-      currency,
     );
+    if (includeBalance) cells.push(balance != null ? Number(balance) : '');
+    cells.push(currency);
     return cells;
   });
 
@@ -50,21 +60,28 @@ export async function exportLedgerPdf(
   currency: 'PKR' | 'SAR',
   filename: string,
   includeAccount = false,
+  includeBalance = true,
 ) {
   assertRows(rows);
-  const accountHeader = includeAccount ? '<th>Account</th>' : '';
+  const accountHeaders = includeAccount ? '<th>Account</th><th>Other Side</th>' : '';
+  const balanceHeader = includeBalance ? '<th class="num">Balance</th>' : '';
   const tableRows = rows
     .map((row) => {
       const balance = balanceForRow(row, currency);
-      const accountCell = includeAccount ? `<td>${escapeHtml(row.account?.name)}</td>` : '';
+      const accountCells = includeAccount
+        ? `<td>${escapeHtml(row.account?.name)}</td><td>${escapeHtml(row.counterAccount?.name || '')}</td>`
+        : '';
+      const balanceCell = includeBalance
+        ? `<td class="num">${balance != null ? escapeHtml(formatCurrency(balance, currency)) : ''}</td>`
+        : '';
       return `<tr>
         <td>${escapeHtml(formatDate(row.journalEntry.date))}</td>
         <td>${escapeHtml(row.journalEntry.entryNumber)}</td>
-        ${accountCell}
+        ${accountCells}
         <td>${escapeHtml(row.description || row.journalEntry.description)}</td>
         <td class="num">${Number(row.debit) > 0 ? escapeHtml(formatCurrency(row.debit, currency)) : ''}</td>
         <td class="num">${Number(row.credit) > 0 ? escapeHtml(formatCurrency(row.credit, currency)) : ''}</td>
-        <td class="num">${balance != null ? escapeHtml(formatCurrency(balance, currency)) : ''}</td>
+        ${balanceCell}
       </tr>`;
     })
     .join('');
@@ -74,7 +91,7 @@ export async function exportLedgerPdf(
     `<h1>${escapeHtml(title)}</h1>
      <p class="meta">${escapeHtml(subtitle)} · ${currency} view · ${rows.length} transaction(s)</p>
      <table>
-       <thead><tr><th>Date</th><th>Entry</th>${accountHeader}<th>Description</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th></tr></thead>
+       <thead><tr><th>Date</th><th>Entry</th>${accountHeaders}<th>Description</th><th class="num">Debit</th><th class="num">Credit</th>${balanceHeader}</tr></thead>
        <tbody>${tableRows}</tbody>
      </table>`
   );

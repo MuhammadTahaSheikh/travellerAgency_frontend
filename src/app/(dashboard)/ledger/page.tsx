@@ -178,7 +178,7 @@ function CompanyAgencySummary({
     0,
   );
   const amountToPay = vendorPayable + unpostedPayable;
-  const grossProfit = totalAvailable - amountToPay;
+  const grossProfit = totalAvailable + amountToReceive - amountToPay;
 
   const metricClass = (value: number) =>
     value >= 0 ? 'text-teal-700' : 'text-red-600';
@@ -209,7 +209,7 @@ function CompanyAgencySummary({
         </div>
         <div className="rounded-lg bg-white border border-teal-200 p-3 sm:p-4 bg-teal-50/50">
           <p className="text-xs font-semibold uppercase tracking-wide text-teal-800">Gross Profit</p>
-          <p className="text-[11px] text-teal-600 mt-0.5">Available − Payable (cash basis)</p>
+          <p className="text-[11px] text-teal-600 mt-0.5">Available + Receivable − Payable</p>
           <p className={`mt-2 text-lg sm:text-xl font-bold tabular-nums ${metricClass(grossProfit)}`}>
             {formatCurrency(grossProfit, currency)}
           </p>
@@ -424,24 +424,26 @@ export default function LedgerPage() {
   useEffect(() => { loadData(); }, []);
 
   const handleExportLedger = async (format: 'csv' | 'html') => {
+    const isAllAccountsView = !selectedAccountId;
     const rows = selectedAccountId
       ? (accountDetail?.account.id === selectedAccountId ? accountDetail.transactions : ledgerTransactions)
       : ledgerTransactions;
-    const includeAccount = !selectedAccountId;
+    const includeAccount = isAllAccountsView;
+    const includeBalance = !isAllAccountsView;
     const title = selectedAccountId && accountDetail?.account.id === selectedAccountId
       ? `Ledger — ${formatAccountDisplay(accountDetail.account)}`
       : 'General Ledger';
     const subtitle = selectedAccountId && accountDetail?.account.id === selectedAccountId
       ? accountDetail.account.code
-      : `${currency} view`;
+      : `${currency} view · all accounts`;
     const csvName = selectedAccountId ? 'account-ledger.csv' : 'general-ledger.csv';
     const pdfName = selectedAccountId ? 'account-ledger.pdf' : 'general-ledger.pdf';
 
     try {
       if (format === 'html') {
-        await exportLedgerPdf(title, subtitle, rows, currency, pdfName, includeAccount);
+        await exportLedgerPdf(title, subtitle, rows, currency, pdfName, includeAccount, includeBalance);
       } else {
-        exportLedgerCsv(rows, currency, csvName, includeAccount);
+        exportLedgerCsv(rows, currency, csvName, includeAccount, includeBalance);
       }
     } catch (err) {
       alert((err as Error).message);
@@ -547,8 +549,24 @@ export default function LedgerPage() {
 
   const handleAccountFilterChange = (accountId: string) => {
     setSelectedAccountId(accountId);
-    loadData(appliedDates, accountId);
+    if (!accountId) {
+      setAccountDetail(null);
+      loadData(appliedDates, '');
+      return;
+    }
+    const acc = accounts.find((a) => a.id === accountId);
+    if (acc) {
+      viewAccountLedger(acc);
+    } else {
+      setAccountDetail(null);
+      loadData(appliedDates, accountId);
+    }
   };
+
+  const isAllAccountsLedgerView = activeTab === 'ledger' && !selectedAccountId;
+  const ledgerDisplayRows = (selectedAccountId && accountDetail?.account.id === selectedAccountId)
+    ? accountDetail.transactions
+    : ledgerTransactions;
 
   const journalDebitTotal = journalLines.reduce((s, l) => s + (parseFloat(l.debit) || 0), 0);
   const journalCreditTotal = journalLines.reduce((s, l) => s + (parseFloat(l.credit) || 0), 0);
@@ -923,18 +941,30 @@ export default function LedgerPage() {
           {activeTab === 'ledger' && (
             <Card>
               <CardBody className="p-0 sm:p-0">
-                {accountDetail && (
+                {selectedAccountId && accountDetail?.account.id === selectedAccountId && (
                   <div className="p-4 border-b border-slate-100 bg-slate-50">
                     <h3 className="font-bold">{formatAccountDisplay(accountDetail.account)}</h3>
-                    <p className="text-sm text-slate-500">Account ledger — {currency} view</p>
+                    <p className="text-sm text-slate-500">Account ledger — {currency} view · running balance shown below</p>
                   </div>
                 )}
-                {(accountDetail?.transactions.length || ledgerTransactions.length) === 0 ? (
+                {isAllAccountsLedgerView && (
+                  <div className="p-4 border-b border-amber-100 bg-amber-50 text-sm text-amber-950">
+                    <p className="font-medium">All accounts view</p>
+                    <p className="mt-1 text-amber-900/90">
+                      Each row shows which account was affected. <strong>Other Side</strong> is the matching line in the same journal entry.
+                      Balance is hidden here because mixing all accounts into one total is misleading — select one account to see its running balance.
+                    </p>
+                  </div>
+                )}
+                {ledgerDisplayRows.length === 0 ? (
                   <EmptyState message="No ledger transactions for the selected period." />
                 ) : (
                   <LedgerTransactionTable
-                    rows={(accountDetail?.transactions || ledgerTransactions) as LedgerTransactionRow[]}
+                    rows={ledgerDisplayRows as LedgerTransactionRow[]}
                     currency={currency}
+                    showAccountColumn={isAllAccountsLedgerView}
+                    showCounterAccountColumn={isAllAccountsLedgerView}
+                    showBalanceColumn={!isAllAccountsLedgerView}
                   />
                 )}
               </CardBody>
