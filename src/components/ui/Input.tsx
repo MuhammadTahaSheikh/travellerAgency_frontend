@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { clsx } from 'clsx';
 import { ChevronDown, Search, Loader2 } from 'lucide-react';
 
@@ -89,7 +90,23 @@ export function SearchableSelect({
   const [asyncOptions, setAsyncOptions] = useState<{ value: string; label: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number; maxHeight: number; openUp: boolean } | null>(null);
+
+  // Position the dropdown via a fixed-position portal so it is never clipped by an
+  // ancestor with overflow-hidden (e.g. Card) and can always scroll through every option.
+  const updateCoords = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const openUp = spaceBelow < 260 && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(160, Math.min(320, (openUp ? spaceAbove : spaceBelow) - 16));
+    setCoords({ top: rect.top, left: rect.left, width: rect.width, maxHeight, openUp });
+  }, []);
 
   const staticSelected = options.find((o) => o.value === value);
   const asyncSelected = asyncOptions.find((o) => o.value === value);
@@ -136,12 +153,25 @@ export function SearchableSelect({
     return options.filter((o) => o.label.toLowerCase().includes(q));
   }, [onSearch, asyncOptions, options, search, value, selectedLabelText]);
 
+  useLayoutEffect(() => {
+    if (!open) return;
+    updateCoords();
+    const onReposition = () => updateCoords();
+    window.addEventListener('scroll', onReposition, true);
+    window.addEventListener('resize', onReposition);
+    return () => {
+      window.removeEventListener('scroll', onReposition, true);
+      window.removeEventListener('resize', onReposition);
+    };
+  }, [open, updateCoords]);
+
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setSearch('');
-      }
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target)) return;
+      if (dropdownRef.current?.contains(target)) return;
+      setOpen(false);
+      setSearch('');
     };
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
@@ -165,6 +195,7 @@ export function SearchableSelect({
     <div className={clsx('space-y-1.5 relative', className)} ref={containerRef}>
       {label && <label className="block text-sm font-medium text-slate-700">{label}</label>}
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => setOpen(!open)}
@@ -179,8 +210,20 @@ export function SearchableSelect({
         </span>
         <ChevronDown className={clsx('w-4 h-4 text-slate-400 shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
-      {open && (
-        <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+      {open && coords && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{
+            position: 'fixed',
+            left: coords.left,
+            width: coords.width,
+            ...(coords.openUp
+              ? { bottom: Math.max(8, window.innerHeight - coords.top + 4) }
+              : { top: coords.top + (triggerRef.current?.offsetHeight ?? 42) + 4 }),
+            zIndex: 9999,
+          }}
+          className="bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden"
+        >
           <div className="p-2 border-b border-slate-100">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -194,7 +237,7 @@ export function SearchableSelect({
               />
             </div>
           </div>
-          <ul className="max-h-56 overflow-y-auto py-1">
+          <ul className="overflow-y-auto py-1" style={{ maxHeight: coords.maxHeight }}>
             {loading ? (
               <li className="px-3 py-3 text-sm text-slate-400 flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" /> Searching...
@@ -222,7 +265,8 @@ export function SearchableSelect({
               ))
             )}
           </ul>
-        </div>
+        </div>,
+        document.body
       )}
       {required && !value && <input tabIndex={-1} className="sr-only" required value={value} onChange={() => {}} />}
     </div>
