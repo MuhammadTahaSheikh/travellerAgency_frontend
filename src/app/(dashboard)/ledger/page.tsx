@@ -92,7 +92,7 @@ function AccountCard({
     acc.code;
 
   const bal = currency === 'SAR' ? Number((acc as Account & { balanceSar?: number }).balanceSar || 0) : Number((acc as Account & { balancePkr?: number }).balancePkr ?? acc.balance);
-  const displayBal = acc.type === 'REVENUE' || acc.code === 'INCOME-001' ? Math.abs(bal) : bal;
+  const displayBal = acc.code === 'INCOME-001' ? Math.abs(bal) : bal;
 
   return (
     <div className="hover:shadow-md transition-shadow cursor-pointer" onClick={onView} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onView?.()}>
@@ -130,10 +130,23 @@ function accountBalance(acc: Account, currency: 'PKR' | 'SAR') {
     : Number(acc.balancePkr ?? acc.balance);
 }
 
-/** Revenue accounts store credit-normal balances as negative internally. */
+const HIDDEN_COMPANY_ACCOUNT_CODES = new Set(['DEFERRED-001']);
+
+function visibleCompanyAccounts(accounts: Account[]) {
+  return accounts.filter((a) => !HIDDEN_COMPANY_ACCOUNT_CODES.has(a.code));
+}
+
+function companyGroupTotal(group: LedgerAccountGroup, currency: 'PKR' | 'SAR') {
+  return visibleCompanyAccounts(group.accounts).reduce(
+    (s, a) => s + accountBalance(a, currency),
+    0,
+  );
+}
+
+/** Income account stores credit-normal balances as negative internally. */
 function displayAccountBalance(acc: Account, currency: 'PKR' | 'SAR') {
   const raw = accountBalance(acc, currency);
-  if (acc.type === 'REVENUE' || acc.code === 'INCOME-001') return Math.abs(raw);
+  if (acc.code === 'INCOME-001') return Math.abs(raw);
   return raw;
 }
 
@@ -144,7 +157,7 @@ function CompanyAgencySummary({
   grouped: Record<string, LedgerAccountGroup>;
   currency: 'PKR' | 'SAR';
 }) {
-  const companyAccounts = grouped.company?.accounts ?? [];
+  const companyAccounts = visibleCompanyAccounts(grouped.company?.accounts ?? []);
   const customerAccounts = grouped.customers?.accounts ?? [];
   const vendorAccounts = grouped.vendors?.accounts ?? [];
   const unpostedAccounts = grouped.unposted?.accounts ?? [];
@@ -167,7 +180,7 @@ function CompanyAgencySummary({
     0,
   );
   const amountToPay = vendorPayable + unpostedPayable;
-  const grossProfit = totalAvailable + amountToReceive - amountToPay;
+  const grossProfit = totalAvailable - amountToPay;
 
   const metricClass = (value: number) =>
     value >= 0 ? 'text-teal-700' : 'text-red-600';
@@ -198,7 +211,7 @@ function CompanyAgencySummary({
         </div>
         <div className="rounded-lg bg-white border border-teal-200 p-3 sm:p-4 bg-teal-50/50">
           <p className="text-xs font-semibold uppercase tracking-wide text-teal-800">Gross Profit</p>
-          <p className="text-[11px] text-teal-600 mt-0.5">Available + Receivable − Payable</p>
+          <p className="text-[11px] text-teal-600 mt-0.5">Available − Payable (cash basis)</p>
           <p className={`mt-2 text-lg sm:text-xl font-bold tabular-nums ${metricClass(grossProfit)}`}>
             {formatCurrency(grossProfit, currency)}
           </p>
@@ -729,8 +742,8 @@ export default function LedgerPage() {
               <div>
                 <GroupSection
                   title={grouped.company.label}
-                  accounts={grouped.company.accounts}
-                  totalBalance={groupTotalBalance(grouped.company, currency)}
+                  accounts={visibleCompanyAccounts(grouped.company.accounts)}
+                  totalBalance={companyGroupTotal(grouped.company, currency)}
                   currency={currency}
                   onViewAccount={viewAccountLedger}
                   canManageCompany={isSuperAdmin(user)}
