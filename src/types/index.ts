@@ -100,7 +100,32 @@ export interface Booking {
   customer?: Customer;
   package?: Package;
   serviceItems?: BookingServiceItem[];
+  vendorPostings?: VendorPostingSummary[];
+  paymentStatus?: 'Unpaid' | 'Paid' | 'Partially-Paid';
+  postingStatus?: 'Posted' | 'Un-Posted' | 'Partially Posted';
   createdAt: string;
+}
+
+export interface VendorPostingSummary {
+  id: string;
+  description: string;
+  expectedCost: number;
+  actualCost?: number | null;
+  status: 'PENDING' | 'POSTED' | 'CANCELLED';
+  serviceType: string;
+  vendor?: { id: string; name: string };
+}
+
+export interface PostingRequest {
+  id: string;
+  bookingId: string;
+  vendorPostingId: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  rejectionReason?: string;
+  createdAt: string;
+  booking?: Booking;
+  vendorPosting?: VendorPostingSummary;
+  requestedBy?: { firstName: string; lastName: string; email?: string };
 }
 
 export interface InvoiceItem {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Pencil } from 'lucide-react';
 import api from '@/lib/api';
 import { searchB2BCustomers, searchPackages, searchVendors } from '@/lib/searchableOptions';
 import { buildQueryString } from '@/lib/query';
@@ -17,7 +17,8 @@ import {
   Invoice,
   ApiResponse,
 } from '@/types';
-import { canCreateResource, canEditResource, canDeleteResource } from '@/lib/permissions';
+import { canCreateResource, canEditResource, canDeleteResource, canModifyBooking } from '@/lib/permissions';
+import { getPaymentStatus, getPostingStatus, paymentStatusColor, postingStatusColor } from '@/lib/bookingStatus';
 import { shareInvoiceViaWhatsApp } from '@/lib/whatsapp';
 import { useExchangeRate } from '@/contexts/ExchangeRateContext';
 import { Button } from '@/components/ui/Button';
@@ -27,6 +28,9 @@ import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
 import { PageHeader, LoadingSpinner, Badge, formatCurrency, formatDate, EmptyState } from '@/components/ui/Common';
 import { RowActions, confirmDelete } from '@/components/ui/RowActions';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
+import { BookingViewModal } from '@/components/bookings/BookingViewModal';
+import { BookingPostingModal } from '@/components/bookings/BookingPostingModal';
+import { BookingPricingModal } from '@/components/bookings/BookingPricingModal';
 
 type ServiceCurrency = 'PKR' | 'SAR';
 type Counts = { adults: number; children: number; infants: number };
@@ -174,6 +178,9 @@ export default function BookingsPage() {
   const [endDate, setEndDate] = useState('');
   const [appliedDates, setAppliedDates] = useState({ startDate: '', endDate: '' });
   const [loadError, setLoadError] = useState('');
+  const [viewBookingId, setViewBookingId] = useState<string | null>(null);
+  const [postingBooking, setPostingBooking] = useState<Booking | null>(null);
+  const [pricingBooking, setPricingBooking] = useState<Booking | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
 
   // Manual PKR-per-SAR rate: the booking's own entry takes priority, else the system manual rate.
@@ -309,6 +316,10 @@ export default function BookingsPage() {
   };
 
   const startEdit = (b: Booking) => {
+    if (!canModifyBooking(user, b.status)) {
+      alert('Confirmed bookings cannot be modified. Contact Super Admin.');
+      return;
+    }
     setEditingId(b.id);
     const bookingType: BookingType = b.bookingType || (b.customer?.customerType === 'B2C' ? 'B2C' : 'B2B');
     // Legacy bookings (created before price modes existed) carried per-item sale prices.
@@ -741,34 +752,83 @@ export default function BookingsPage() {
                       <TableHeaderCell>Customer</TableHeaderCell>
                       <TableHeaderCell className="hidden md:table-cell">Services</TableHeaderCell>
                       <TableHeaderCell>Amount</TableHeaderCell>
-                      <TableHeaderCell className="hidden sm:table-cell">Paid</TableHeaderCell>
+                      <TableHeaderCell className="hidden sm:table-cell">Payment Status</TableHeaderCell>
                       <TableHeaderCell>Status</TableHeaderCell>
+                      <TableHeaderCell className="hidden lg:table-cell">Posting Status</TableHeaderCell>
                       <TableHeaderCell className="hidden lg:table-cell">Date</TableHeaderCell>
                       <TableHeaderCell align="right">Actions</TableHeaderCell>
                     </tr>
                   </TableHead>
                   <TableBody>
-                    {bookings.map((b) => (
+                    {bookings.map((b) => {
+                      const paymentStatus = getPaymentStatus(b);
+                      const postingStatus = getPostingStatus(b);
+                      const canModify = canModifyBooking(user, b.status);
+                      return (
                       <TableRow key={b.id}>
-                        <TableCell className="font-semibold text-slate-900">{b.bookingNumber}</TableCell>
+                        <TableCell className="font-semibold text-slate-900">
+                          <button
+                            type="button"
+                            onClick={() => setViewBookingId(b.id)}
+                            className="text-teal-700 hover:text-teal-900 hover:underline"
+                          >
+                            {b.bookingNumber}
+                          </button>
+                        </TableCell>
                         <TableCell>{customerDisplay(b)}</TableCell>
                         <TableCell className="hidden md:table-cell text-sm text-slate-600">
                           {b.serviceItems?.map((s) => s.serviceType).join(', ') || b.package?.name || '—'}
                         </TableCell>
-                        <TableCell className="font-medium">{formatCurrency(b.totalAmount)}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-teal-700">{formatCurrency(b.paidAmount)}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <span>{formatCurrency(b.totalAmount)}</span>
+                            {canEditResource(user, 'bookings') && canModify && (
+                              <button
+                                type="button"
+                                onClick={() => setPricingBooking(b)}
+                                className="p-1 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50"
+                                title="Edit pricing"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ring-1 ring-inset ${paymentStatusColor(paymentStatus)}`}>
+                            {paymentStatus}
+                          </span>
+                        </TableCell>
                         <TableCell><Badge status={b.status}>{b.status}</Badge></TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ring-1 ring-inset ${postingStatusColor(postingStatus)}`}>
+                              {postingStatus}
+                            </span>
+                            {canEditResource(user, 'bookings') && (
+                              <button
+                                type="button"
+                                onClick={() => setPostingBooking(b)}
+                                className="p-1 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50"
+                                title="Edit posting"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="hidden lg:table-cell text-slate-500">{formatDate(b.createdAt)}</TableCell>
                         <TableCell align="right">
                           <RowActions
                             onEdit={() => startEdit(b)}
                             onDelete={() => handleDelete(b)}
-                            canEdit={canEditResource(user, 'bookings')}
-                            canDelete={canDeleteResource(user, 'bookings')}
+                            canEdit={canEditResource(user, 'bookings') && canModify}
+                            canDelete={canDeleteResource(user, 'bookings') && canModify}
                           />
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </TableWrapper>
@@ -776,6 +836,25 @@ export default function BookingsPage() {
           </CardBody>
         </Card>
       )}
+
+      <BookingViewModal
+        bookingId={viewBookingId}
+        open={!!viewBookingId}
+        onClose={() => setViewBookingId(null)}
+      />
+      <BookingPostingModal
+        booking={postingBooking}
+        open={!!postingBooking}
+        onClose={() => setPostingBooking(null)}
+        onSuccess={loadData}
+        user={user}
+      />
+      <BookingPricingModal
+        booking={pricingBooking}
+        open={!!pricingBooking}
+        onClose={() => setPricingBooking(null)}
+        onSuccess={loadData}
+      />
     </div>
   );
 }

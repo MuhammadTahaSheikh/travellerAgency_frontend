@@ -60,6 +60,17 @@ export function canChangeUserRole(user: User | null): boolean {
   return isSuperAdmin(user);
 }
 
+export function canModifyBooking(user: User | null, bookingStatus: string): boolean {
+  if (!user) return false;
+  if (isSuperAdmin(user)) return true;
+  if (getUserRole(user) === 'ADMIN') return true;
+  return bookingStatus !== 'CONFIRMED';
+}
+
+export function canDirectPostVendor(user: User | null): boolean {
+  return isSuperAdmin(user);
+}
+
 export function canDeleteUser(user: User | null): boolean {
   return isSuperAdmin(user);
 }
