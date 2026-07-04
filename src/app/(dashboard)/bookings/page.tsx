@@ -31,6 +31,7 @@ import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, T
 import { BookingViewModal } from '@/components/bookings/BookingViewModal';
 import { BookingPostingModal } from '@/components/bookings/BookingPostingModal';
 import { BookingPricingModal } from '@/components/bookings/BookingPricingModal';
+import { formatVendorDisplay } from '@/lib/vendorDisplay';
 
 type ServiceCurrency = 'PKR' | 'SAR';
 type Counts = { adults: number; children: number; infants: number };
@@ -188,7 +189,10 @@ export default function BookingsPage() {
   const toPkr = (native: number, currency: ServiceCurrency, rateValue: number) =>
     currency === 'SAR' ? native * rateValue : native;
 
-  const vendorLabel = (id?: string) => (id ? vendors.find((v) => v.id === id)?.name || '' : '');
+  const vendorLabel = (id?: string) => {
+    const v = id ? vendors.find((item) => item.id === id) : undefined;
+    return v ? formatVendorDisplay(v) : '';
+  };
 
   const loadData = (dates = appliedDates) => {
     setLoading(true);

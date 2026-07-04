@@ -113,7 +113,7 @@ export interface VendorPostingSummary {
   actualCost?: number | null;
   status: 'UNASSIGNED' | 'PENDING' | 'POSTED' | 'CANCELLED';
   serviceType: string;
-  vendor?: { id: string; name: string };
+  vendor?: { id: string; name: string; vendorCode?: string };
 }
 
 export interface PostingRequest {
@@ -266,7 +266,7 @@ export interface Account {
   vendorId?: string | null;
   employeeId?: string | null;
   customer?: { id: string; firstName: string; lastName: string; phone?: string };
-  vendor?: { id: string; name: string; category: string };
+  vendor?: { id: string; name: string; vendorCode?: string; category: string };
   employee?: { id: string; firstName: string; lastName: string };
 }
 

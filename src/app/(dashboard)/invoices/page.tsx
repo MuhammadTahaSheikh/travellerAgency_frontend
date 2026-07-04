@@ -16,6 +16,7 @@ import { Input, Select, SearchableSelect } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
 import { PageHeader, LoadingSpinner, Badge, formatCurrency, formatDate, EmptyState } from '@/components/ui/Common';
+import { formatVendorDisplay } from '@/lib/vendorDisplay';
 import { RowActions, confirmDelete } from '@/components/ui/RowActions';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
@@ -53,6 +54,11 @@ export default function InvoicesPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [appliedDates, setAppliedDates] = useState({ startDate: '', endDate: '' });
+
+  const vendorLabel = (id?: string) => {
+    const v = id ? vendors.find((item) => item.id === id) : undefined;
+    return v ? formatVendorDisplay(v) : '';
+  };
 
   const loadData = (dates = appliedDates) => {
     setLoading(true);
@@ -247,7 +253,7 @@ export default function InvoicesPage() {
                         <Input label="Unit Price" type="number" value={item.unitPrice} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, unitPrice: e.target.value }; setLineItems(next); }} />
                         <Input label="Qty" type="number" value={String(item.quantity)} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, quantity: parseInt(e.target.value) || 1 }; setLineItems(next); }} />
                         <Input label="Est. Cost" type="number" value={item.costAmount} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, costAmount: e.target.value }; setLineItems(next); }} />
-                        <SearchableSelect label="Vendor" value={item.vendorId} onChange={(v) => { const next = [...lineItems]; next[idx] = { ...item, vendorId: v }; setLineItems(next); }} onSearch={searchVendors} options={[{ value: '', label: 'None' }]} />
+                        <SearchableSelect label="Vendor" value={item.vendorId} onChange={(v) => { const next = [...lineItems]; next[idx] = { ...item, vendorId: v }; setLineItems(next); }} onSearch={searchVendors} selectedLabel={vendorLabel(item.vendorId)} options={[{ value: '', label: 'None' }]} />
                         <Input label="Due Date" type="date" value={item.dueDate} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, dueDate: e.target.value }; setLineItems(next); }} />
                         <Select label="Vendor Post" value={item.postingType} onChange={(e) => { const next = [...lineItems]; next[idx] = { ...item, postingType: e.target.value as 'INSTANT' | 'PENDING' }; setLineItems(next); }} options={[{ value: 'PENDING', label: 'Pending' }, { value: 'INSTANT', label: 'Instant' }]} />
                       </div>

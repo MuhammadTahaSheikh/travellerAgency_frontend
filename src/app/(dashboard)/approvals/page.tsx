@@ -8,12 +8,13 @@ import { Invoice, PostingRequest, BookingConfirmationRequest, ApiResponse } from
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody } from '@/components/ui/Card';
 import { PageHeader, LoadingSpinner, formatCurrency, formatDate, EmptyState } from '@/components/ui/Common';
+import { formatVendorDisplay } from '@/lib/vendorDisplay';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
 interface ApprovalInvoice extends Invoice {
   remainingBalance?: number;
   totalCost?: number;
-  vendorPostings?: { id: string; description: string; expectedCost: number; status: string; vendor?: { name: string } }[];
+  vendorPostings?: { id: string; description: string; expectedCost: number; status: string; vendor?: { name: string; vendorCode?: string } }[];
 }
 
 type Tab = 'payments' | 'booking' | 'posting';
@@ -210,7 +211,13 @@ export default function ApprovalsPage() {
                             </div>
                           ))}
                         </TableCell>
-                        <TableCell className="hidden xl:table-cell text-sm">—</TableCell>
+                        <TableCell className="hidden xl:table-cell text-sm">
+                          {inv.vendorPostings?.length ? inv.vendorPostings.map((p) => (
+                            <div key={p.id} className="py-0.5">
+                              {formatVendorDisplay(p.vendor)} · {p.description} ({formatCurrency(p.expectedCost)})
+                            </div>
+                          )) : '—'}
+                        </TableCell>
                         <TableCell align="right">
                           <div className="flex justify-end gap-1">
                             <Button variant="secondary" loading={acting === inv.id} onClick={() => handleApprove(inv)} title="Approve">
@@ -295,7 +302,8 @@ export default function ApprovalsPage() {
                     <tr>
                       <TableHeaderCell>Booking</TableHeaderCell>
                       <TableHeaderCell>Customer</TableHeaderCell>
-                      <TableHeaderCell>Vendor Posting</TableHeaderCell>
+                      <TableHeaderCell>Vendor</TableHeaderCell>
+                      <TableHeaderCell>Service</TableHeaderCell>
                       <TableHeaderCell>Cost</TableHeaderCell>
                       <TableHeaderCell>Requested By</TableHeaderCell>
                       <TableHeaderCell>Date</TableHeaderCell>
@@ -311,6 +319,7 @@ export default function ApprovalsPage() {
                             || `${req.booking?.customer?.firstName || ''} ${req.booking?.customer?.lastName || ''}`.trim()
                             || '—'}
                         </TableCell>
+                        <TableCell className="text-sm font-medium">{formatVendorDisplay(req.vendorPosting?.vendor)}</TableCell>
                         <TableCell className="text-sm">{req.vendorPosting?.description || '—'}</TableCell>
                         <TableCell>{formatCurrency(req.vendorPosting?.expectedCost || 0)}</TableCell>
                         <TableCell>

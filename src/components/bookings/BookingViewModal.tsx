@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import api from '@/lib/api';
 import { Booking, ApiResponse } from '@/types';
 import { formatCurrency, formatDate, Badge, LoadingSpinner } from '@/components/ui/Common';
+import { formatVendorDisplay } from '@/lib/vendorDisplay';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody } from '@/components/ui/Card';
 
@@ -106,7 +107,7 @@ export function BookingViewModal({ bookingId, open, onClose }: BookingViewModalP
                               <td className="px-4 py-3">{item.description}</td>
                               <td className="px-4 py-3">{formatCurrency(item.costAmount || 0)}</td>
                               <td className="px-4 py-3">{formatCurrency(item.amount || 0)}</td>
-                              <td className="px-4 py-3">{item.vendor?.name || '—'}</td>
+                              <td className="px-4 py-3">{formatVendorDisplay(item.vendor)}</td>
                             </tr>
                           ))}
                         </tbody>

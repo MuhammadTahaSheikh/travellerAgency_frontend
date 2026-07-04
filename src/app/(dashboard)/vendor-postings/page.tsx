@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Input, Select, SearchableSelect } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
 import { PageHeader, LoadingSpinner, formatCurrency, formatDate, Badge, EmptyState } from '@/components/ui/Common';
+import { formatVendorDisplay } from '@/lib/vendorDisplay';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
 
 interface VendorPosting {
@@ -226,7 +227,7 @@ export default function VendorPostingsPage() {
                           {p.invoice?.invoiceNumber && <span className="block text-xs text-slate-500">{p.invoice.invoiceNumber}</span>}
                           {!p.invoice && p.booking?.bookingNumber && <span className="block text-xs text-slate-500">{p.booking.bookingNumber}</span>}
                         </TableCell>
-                        <TableCell>{p.vendor?.name || '—'}</TableCell>
+                        <TableCell>{formatVendorDisplay(p.vendor)}</TableCell>
                         <TableCell>{formatCurrency(p.expectedCost, p.currency || 'PKR')}</TableCell>
                         <TableCell>{p.dueDate ? formatDate(p.dueDate) : '—'}</TableCell>
                         <TableCell><Badge status={p.status}>{p.status}</Badge></TableCell>

@@ -6,6 +6,7 @@ import { X } from 'lucide-react';
 import api from '@/lib/api';
 import { Booking, ApiResponse, VendorPostingSummary } from '@/types';
 import { formatCurrency, LoadingSpinner, Badge } from '@/components/ui/Common';
+import { formatVendorDisplay } from '@/lib/vendorDisplay';
 import { Button } from '@/components/ui/Button';
 
 type BookingPostingModalProps = {
@@ -89,7 +90,7 @@ export function BookingPostingModal({ booking, open, onClose }: BookingPostingMo
                     <div key={posting.id} className="rounded-xl border border-slate-200 p-4">
                       <p className="font-medium text-slate-900">{posting.description}</p>
                       <p className="text-sm text-slate-500">
-                        {posting.serviceType} · {posting.vendor?.name || 'Vendor not assigned'} · {formatCurrency(posting.expectedCost)}
+                        {posting.serviceType} · {posting.vendor ? formatVendorDisplay(posting.vendor) : 'Vendor not assigned'} · {formatCurrency(posting.expectedCost)}
                       </p>
                       <span className={`inline-flex mt-2 px-2 py-0.5 rounded text-xs font-semibold ${
                         posting.status === 'POSTED'

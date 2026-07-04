@@ -1,4 +1,5 @@
 import api from '@/lib/api';
+import { formatVendorDisplay } from '@/lib/vendorDisplay';
 import { ApiResponse, Customer, Vendor, Booking, Invoice, Account, Package } from '@/types';
 import { formatCurrency } from '@/components/ui/Common';
 
@@ -33,7 +34,7 @@ export async function searchVendors(query: string, category?: string): Promise<S
   const res = await api.get<ApiResponse<Vendor[]>>(`/vendors?search=${encode(query)}&limit=50${cat}`);
   return (res.data || []).map((v) => ({
     value: v.id,
-    label: v.vendorCode ? `${v.vendorCode} · ${v.name}` : v.name,
+    label: formatVendorDisplay(v, v.name),
   }));
 }
 

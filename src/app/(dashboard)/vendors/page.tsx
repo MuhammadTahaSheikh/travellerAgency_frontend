@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux';
 import { Plus, Wallet, BookOpen, Download, Pencil } from 'lucide-react';
 import { searchPaymentAccounts } from '@/lib/searchableOptions';
 import api from '@/lib/api';
+import { formatVendorDisplay } from '@/lib/vendorDisplay';
 import { exportLedgerCsv, exportLedgerPdf } from '@/lib/ledgerExport';
 import { RootState } from '@/store';
 import { isAdminOrAbove, isSuperAdmin } from '@/lib/permissions';
@@ -149,7 +150,7 @@ export default function VendorsPage() {
   const exportVendorLedgerFile = async (format: 'csv' | 'html') => {
     if (!vendorLedger) return;
     const { vendor, transactions } = vendorLedger;
-    const title = `Vendor Ledger — ${vendor.name}`;
+    const title = `Vendor Ledger — ${formatVendorDisplay(vendor)}`;
     try {
       if (format === 'html') {
         await exportLedgerPdf(title, vendor.category, transactions, ledgerCurrency, 'vendor-ledger.pdf');
@@ -204,7 +205,7 @@ export default function VendorsPage() {
         <Card className="mb-6">
           <CardBody>
             <div className="flex flex-wrap justify-between items-start gap-3 mb-4">
-              <h3 className="font-bold">Vendor Ledger — {vendorLedger.vendor.name}</h3>
+              <h3 className="font-bold">Vendor Ledger — {formatVendorDisplay(vendorLedger.vendor)}</h3>
               <div className="flex flex-wrap gap-2">
                 <Button variant="secondary" onClick={() => exportVendorLedgerFile('csv')}>
                   <Download className="w-4 h-4 mr-1" />Excel
@@ -345,7 +346,7 @@ export default function VendorsPage() {
         prefill={vendorLedger ? {
           sourceType: 'VENDOR',
           sourceEntityId: vendorLedger.vendor.id,
-          sourceLabel: vendorLedger.vendor.name,
+          sourceLabel: formatVendorDisplay(vendorLedger.vendor),
         } : undefined}
       />
     </div>

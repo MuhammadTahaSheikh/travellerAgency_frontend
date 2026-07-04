@@ -16,6 +16,7 @@ import { Account, ApiResponse, LedgerAccountGroup, TrialBalanceRow } from '@/typ
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter';
 import { PageHeader, LoadingSpinner, formatCurrency, formatDate, TabGroup, EmptyState } from '@/components/ui/Common';
+import { formatAccountDisplay, formatVendorDisplay } from '@/lib/vendorDisplay';
 import { LedgerTransactionTable, LedgerTransactionRow } from '@/components/ledger/LedgerTransactionTable';
 import { InternalTransferButton, InternalTransferModal } from '@/components/ledger/InternalTransferModal';
 import { ExchangeRateInput } from '@/components/currency/ExchangeRateInput';
@@ -81,6 +82,7 @@ function AccountCard({
   onDeactivate?: () => void;
   showManage?: boolean;
 }) {
+  const displayName = acc.vendor ? formatVendorDisplay(acc.vendor) : acc.name;
   const subtitle =
     acc.customer ? (acc.customer as { companyName?: string; firstName?: string; lastName?: string; tradePartnerId?: string }).tradePartnerId
       ? `${(acc.customer as { tradePartnerId?: string }).tradePartnerId}`
@@ -110,7 +112,7 @@ function AccountCard({
               </div>
             )}
           </div>
-          <h3 className="font-bold text-slate-900 mt-2 truncate">{acc.name}</h3>
+          <h3 className="font-bold text-slate-900 mt-2 truncate">{displayName}</h3>
           <p className="text-xs text-slate-400 mt-0.5 truncate">{subtitle}</p>
           <p className={`mt-3 text-xl sm:text-2xl font-bold tabular-nums break-words ${bal >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
             {formatCurrency(bal, currency)}
@@ -408,7 +410,7 @@ export default function LedgerPage() {
       : ledgerTransactions;
     const includeAccount = !selectedAccountId;
     const title = selectedAccountId && accountDetail?.account.id === selectedAccountId
-      ? `Ledger — ${accountDetail.account.name}`
+      ? `Ledger — ${formatAccountDisplay(accountDetail.account)}`
       : 'General Ledger';
     const subtitle = selectedAccountId && accountDetail?.account.id === selectedAccountId
       ? accountDetail.account.code
@@ -904,7 +906,7 @@ export default function LedgerPage() {
               <CardBody className="p-0 sm:p-0">
                 {accountDetail && (
                   <div className="p-4 border-b border-slate-100 bg-slate-50">
-                    <h3 className="font-bold">{accountDetail.account.name}</h3>
+                    <h3 className="font-bold">{formatAccountDisplay(accountDetail.account)}</h3>
                     <p className="text-sm text-slate-500">Account ledger — {currency} view</p>
                   </div>
                 )}
