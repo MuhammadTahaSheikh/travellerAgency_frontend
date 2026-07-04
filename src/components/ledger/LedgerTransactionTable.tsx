@@ -72,14 +72,18 @@ export function LedgerTransactionTable({
                 <TableCell className="text-slate-500 whitespace-nowrap">{formatDate(t.journalEntry.date)}</TableCell>
                 <TableCell className="font-medium whitespace-nowrap">{t.journalEntry.entryNumber}</TableCell>
                 {showAccountColumn && (
-                  <TableCell className="text-sm font-medium text-slate-800 max-w-[10rem] truncate" title={t.account?.name}>
-                    {t.account?.name || '—'}
+                  <TableCell className="text-sm font-medium text-slate-800 max-w-[10rem]">
+                    <span className="block truncate" title={t.account?.name}>
+                      {t.account?.name || '—'}
+                    </span>
                   </TableCell>
                 )}
                 <TableCell>{t.description || t.journalEntry.description}</TableCell>
                 {showCounterAccountColumn && (
-                  <TableCell className="hidden md:table-cell text-sm text-slate-500 max-w-[10rem] truncate" title={t.counterAccount?.name}>
-                    {t.counterAccount?.name || '—'}
+                  <TableCell className="hidden md:table-cell text-sm text-slate-500 max-w-[10rem]">
+                    <span className="block truncate" title={t.counterAccount?.name}>
+                      {t.counterAccount?.name || '—'}
+                    </span>
                   </TableCell>
                 )}
                 <TableCell align="right">{Number(t.debit) > 0 ? formatCurrency(t.debit, currency) : '—'}</TableCell>

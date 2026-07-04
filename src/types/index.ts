@@ -248,9 +248,11 @@ export interface LedgerTransactionRow {
   runningBalance?: number;
   runningBalancePkr?: number;
   runningBalanceSar?: number;
+  displayCurrency?: string;
   journalEntry: { entryNumber: string; date: string; description: string };
   account: { name: string; type?: string };
   bankAccount?: { name: string; type?: string } | null;
+  counterAccount?: { name: string } | null;
 }
 
 export interface Account {
