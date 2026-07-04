@@ -10,6 +10,8 @@ import {
   PriceMode,
   ServiceRow,
 } from '@/types';
+import { buildServiceItemsPayload, PassengerCounts } from '@/lib/bookingPricingUtils';
+import { useExchangeRate } from '@/contexts/ExchangeRateContext';
 import { formatCurrency, LoadingSpinner, Badge } from '@/components/ui/Common';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -22,8 +24,11 @@ type BookingPricingModalProps = {
 };
 
 const toNum = (v: string | number | undefined) => parseFloat(String(v ?? 0)) || 0;
+const ROW_BASED_TYPES: BookingServiceItem['serviceType'][] = ['HOTEL', 'TRANSPORT'];
 
 export function BookingPricingModal({ booking, open, onClose, onSuccess }: BookingPricingModalProps) {
+  const { rate } = useExchangeRate();
+  const pkrPerSar = rate?.pkrPerSar || rate?.manualDefault || 1;
   const [detail, setDetail] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -71,6 +76,11 @@ export function BookingPricingModal({ booking, open, onClose, onSuccess }: Booki
   if (!open || !booking) return null;
 
   const priceMode: PriceMode = detail?.priceMode || booking.priceMode || 'DETERMINED';
+  const counts: PassengerCounts = {
+    adults: detail?.adults ?? booking.adults ?? 1,
+    children: detail?.children ?? booking.children ?? 0,
+    infants: detail?.infants ?? booking.infants ?? 0,
+  };
 
   const updateServiceItem = (idx: number, updates: Partial<BookingServiceItem>) => {
     setServiceItems((items) => items.map((item, i) => (i === idx ? { ...item, ...updates } : item)));
@@ -91,27 +101,15 @@ export function BookingPricingModal({ booking, open, onClose, onSuccess }: Booki
     e.preventDefault();
     setSaving(true);
     try {
+      const builtItems = buildServiceItemsPayload(serviceItems, counts, priceMode, pkrPerSar);
       const payload = priceMode === 'DETERMINED'
         ? {
             priceAdult: toNum(priceAdult),
             priceChild: toNum(priceChild),
             priceInfant: toNum(priceInfant),
+            serviceItems: builtItems,
           }
-        : {
-            serviceItems: serviceItems.map((s) => ({
-              serviceType: s.serviceType,
-              description: s.description,
-              amount: s.amount,
-              costAmount: s.costAmount,
-              vendorId: s.vendorId,
-              details: {
-                ...(s.details || {}),
-                rows: s.rows,
-                costOriginal: String(s.costAmount),
-                saleOriginal: String(s.amount),
-              },
-            })),
-          };
+        : { serviceItems: builtItems };
 
       await api.patch(`/bookings/${booking.id}/pricing`, payload);
       alert('Pricing updated successfully');
@@ -128,6 +126,67 @@ export function BookingPricingModal({ booking, open, onClose, onSuccess }: Booki
     || detail?.customer?.companyName
     || `${detail?.customer?.firstName || ''} ${detail?.customer?.lastName || ''}`.trim()
     || '—';
+
+  const renderServiceCosts = (costOnly: boolean) => (
+    <div className="space-y-4">
+      {serviceItems.length === 0 ? (
+        <p className="text-sm text-slate-500">No service items on this booking.</p>
+      ) : (
+        serviceItems.map((item, idx) => (
+          <div key={item.id || idx} className="rounded-xl border border-slate-200 p-4 bg-slate-50">
+            <p className="text-sm font-semibold text-teal-700 mb-3">{item.serviceType} — {item.description}</p>
+
+            {item.serviceType === 'VISA' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Input label="Cost" type="number" value={String(item.costAmount || 0)} onChange={(e) => updateServiceItem(idx, { costAmount: toNum(e.target.value) })} />
+                {!costOnly && (
+                  <Input label="Sale" type="number" value={String(item.amount || 0)} onChange={(e) => updateServiceItem(idx, { amount: toNum(e.target.value) })} />
+                )}
+              </div>
+            )}
+
+            {item.serviceType === 'TICKET' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <Input label="Cost / Adult" type="number" value={item.details?.costAdult || '0'} onChange={(e) => updateServiceDetails(idx, 'costAdult', e.target.value)} hint={`${counts.adults} adult(s)`} />
+                {!costOnly && <Input label="Sale / Adult" type="number" value={item.details?.saleAdult || '0'} onChange={(e) => updateServiceDetails(idx, 'saleAdult', e.target.value)} />}
+                {counts.children > 0 && (
+                  <>
+                    <Input label="Cost / Child" type="number" value={item.details?.costChild || '0'} onChange={(e) => updateServiceDetails(idx, 'costChild', e.target.value)} hint={`${counts.children} child(ren)`} />
+                    {!costOnly && <Input label="Sale / Child" type="number" value={item.details?.saleChild || '0'} onChange={(e) => updateServiceDetails(idx, 'saleChild', e.target.value)} />}
+                  </>
+                )}
+                {counts.infants > 0 && (
+                  <>
+                    <Input label="Cost / Infant" type="number" value={item.details?.costInfant || '0'} onChange={(e) => updateServiceDetails(idx, 'costInfant', e.target.value)} hint={`${counts.infants} infant(s)`} />
+                    {!costOnly && <Input label="Sale / Infant" type="number" value={item.details?.saleInfant || '0'} onChange={(e) => updateServiceDetails(idx, 'saleInfant', e.target.value)} />}
+                  </>
+                )}
+              </div>
+            )}
+
+            {ROW_BASED_TYPES.includes(item.serviceType) && (item.rows || []).map((row, rowIdx) => (
+              <div key={rowIdx} className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+                <p className="text-xs font-semibold text-slate-500 mb-2">Row #{rowIdx + 1}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {item.serviceType === 'HOTEL' ? (
+                    <>
+                      <Input label="Cost / Night" type="number" value={row.costPerNight || '0'} onChange={(e) => updateServiceRow(idx, rowIdx, 'costPerNight', e.target.value)} />
+                      {!costOnly && <Input label="Sale / Night" type="number" value={row.salePerNight || '0'} onChange={(e) => updateServiceRow(idx, rowIdx, 'salePerNight', e.target.value)} />}
+                    </>
+                  ) : (
+                    <>
+                      <Input label="Cost" type="number" value={row.cost || '0'} onChange={(e) => updateServiceRow(idx, rowIdx, 'cost', e.target.value)} />
+                      {!costOnly && <Input label="Sale" type="number" value={row.sale || '0'} onChange={(e) => updateServiceRow(idx, rowIdx, 'sale', e.target.value)} />}
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ))
+      )}
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
@@ -154,56 +213,25 @@ export function BookingPricingModal({ booking, open, onClose, onSuccess }: Booki
               </div>
 
               {priceMode === 'DETERMINED' ? (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Input label="Price / Adult" type="number" value={priceAdult} onChange={(e) => setPriceAdult(e.target.value)} />
-                  <Input label="Price / Child" type="number" value={priceChild} onChange={(e) => setPriceChild(e.target.value)} />
-                  <Input label="Price / Infant" type="number" value={priceInfant} onChange={(e) => setPriceInfant(e.target.value)} />
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {serviceItems.map((item, idx) => (
-                    <div key={idx} className="rounded-xl border border-slate-200 p-4 bg-slate-50">
-                      <p className="text-sm font-semibold text-teal-700 mb-3">{item.serviceType} — {item.description}</p>
-
-                      {item.serviceType === 'VISA' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <Input label="Cost" type="number" value={String(item.costAmount || 0)} onChange={(e) => updateServiceItem(idx, { costAmount: toNum(e.target.value) })} />
-                          <Input label="Sale" type="number" value={String(item.amount || 0)} onChange={(e) => updateServiceItem(idx, { amount: toNum(e.target.value) })} />
-                        </div>
-                      )}
-
-                      {item.serviceType === 'TICKET' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                          <Input label="Cost / Adult" type="number" value={item.details?.costAdult || '0'} onChange={(e) => updateServiceDetails(idx, 'costAdult', e.target.value)} />
-                          <Input label="Sale / Adult" type="number" value={item.details?.saleAdult || '0'} onChange={(e) => updateServiceDetails(idx, 'saleAdult', e.target.value)} />
-                          <Input label="Cost / Child" type="number" value={item.details?.costChild || '0'} onChange={(e) => updateServiceDetails(idx, 'costChild', e.target.value)} />
-                          <Input label="Sale / Child" type="number" value={item.details?.saleChild || '0'} onChange={(e) => updateServiceDetails(idx, 'saleChild', e.target.value)} />
-                          <Input label="Cost / Infant" type="number" value={item.details?.costInfant || '0'} onChange={(e) => updateServiceDetails(idx, 'costInfant', e.target.value)} />
-                          <Input label="Sale / Infant" type="number" value={item.details?.saleInfant || '0'} onChange={(e) => updateServiceDetails(idx, 'saleInfant', e.target.value)} />
-                        </div>
-                      )}
-
-                      {(item.serviceType === 'HOTEL' || item.serviceType === 'TRANSPORT') && (item.rows || []).map((row, rowIdx) => (
-                        <div key={rowIdx} className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
-                          <p className="text-xs font-semibold text-slate-500 mb-2">Row #{rowIdx + 1}</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {item.serviceType === 'HOTEL' ? (
-                              <>
-                                <Input label="Cost / Night" type="number" value={row.costPerNight || '0'} onChange={(e) => updateServiceRow(idx, rowIdx, 'costPerNight', e.target.value)} />
-                                <Input label="Sale / Night" type="number" value={row.salePerNight || '0'} onChange={(e) => updateServiceRow(idx, rowIdx, 'salePerNight', e.target.value)} />
-                              </>
-                            ) : (
-                              <>
-                                <Input label="Cost" type="number" value={row.cost || '0'} onChange={(e) => updateServiceRow(idx, rowIdx, 'cost', e.target.value)} />
-                                <Input label="Sale" type="number" value={row.sale || '0'} onChange={(e) => updateServiceRow(idx, rowIdx, 'sale', e.target.value)} />
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                <>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-800 mb-3">Sale Prices (PKR)</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Input label="Sale / Adult" type="number" value={priceAdult} onChange={(e) => setPriceAdult(e.target.value)} hint={`${counts.adults} adult(s)`} />
+                      <Input label="Sale / Child" type="number" value={priceChild} onChange={(e) => setPriceChild(e.target.value)} hint={`${counts.children} child(ren)`} />
+                      <Input label="Sale / Infant" type="number" value={priceInfant} onChange={(e) => setPriceInfant(e.target.value)} hint={`${counts.infants} infant(s)`} />
                     </div>
-                  ))}
-                </div>
+                    <p className="mt-2 text-xs text-slate-500">
+                      Total sale: {formatCurrency(counts.adults * toNum(priceAdult) + counts.children * toNum(priceChild) + counts.infants * toNum(priceInfant))}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-800 mb-3">Service Costs</h3>
+                    {renderServiceCosts(true)}
+                  </div>
+                </>
+              ) : (
+                renderServiceCosts(false)
               )}
             </>
           )}
