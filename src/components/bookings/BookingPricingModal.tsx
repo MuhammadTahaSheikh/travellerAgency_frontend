@@ -64,7 +64,10 @@ export function BookingPricingModal({ booking, open, onClose, onSuccess }: Booki
               costAmount: nativeCost,
               amount: nativeSale,
               details: (restDetails as Record<string, string>) || {},
-              rows: (persistedRows as ServiceRow[]) || [],
+              rows: ((persistedRows as ServiceRow[]) || []).map((r) => ({
+                ...r,
+                vendorId: r.vendorId || s.vendorId || '',
+              })),
             };
           }) || []
         );

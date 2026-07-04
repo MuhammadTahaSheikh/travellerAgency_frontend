@@ -68,6 +68,7 @@ export function buildServiceItemsPayload(
     const costNative = serviceCostNative(s, counts);
     const saleNative = serviceSaleNative(s, counts);
     const rowBased = s.serviceType === 'HOTEL' || s.serviceType === 'TRANSPORT';
+    const rowVendorId = (s.rows || []).map((r) => r.vendorId).find(Boolean);
     const rows = (s.rows || []).map((r) =>
       rowBased
         ? { ...r, costTotal: String(rowCostNative(s, r)), saleTotal: String(rowSaleNative(s, r)) }
@@ -80,7 +81,7 @@ export function buildServiceItemsPayload(
       description: s.description,
       amount: priceMode === 'BREAKDOWN' ? Math.round(toPkr(saleNative, cur, rateValue)) : 0,
       costAmount: Math.round(toPkr(costNative, cur, rateValue)),
-      vendorId: rowBased ? undefined : s.vendorId || undefined,
+      vendorId: rowBased ? (rowVendorId || undefined) : s.vendorId || undefined,
       details: {
         ...(s.details || {}),
         currency: cur,
