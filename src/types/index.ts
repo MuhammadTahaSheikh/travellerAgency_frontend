@@ -257,7 +257,7 @@ export interface Account {
   id: string;
   name: string;
   code: string;
-  type: 'CASH' | 'BANK' | 'CUSTOMER' | 'SUPPLIER' | 'EMPLOYEE';
+  type: 'CASH' | 'BANK' | 'REVENUE' | 'CUSTOMER' | 'SUPPLIER' | 'EMPLOYEE';
   balance: number;
   balancePkr?: number;
   balanceSar?: number;

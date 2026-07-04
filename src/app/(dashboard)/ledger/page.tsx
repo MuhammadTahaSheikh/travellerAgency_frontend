@@ -92,6 +92,7 @@ function AccountCard({
     acc.code;
 
   const bal = currency === 'SAR' ? Number((acc as Account & { balanceSar?: number }).balanceSar || 0) : Number((acc as Account & { balancePkr?: number }).balancePkr ?? acc.balance);
+  const displayBal = acc.type === 'REVENUE' || acc.code === 'INCOME-001' ? Math.abs(bal) : bal;
 
   return (
     <div className="hover:shadow-md transition-shadow cursor-pointer" onClick={onView} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onView?.()}>
@@ -114,8 +115,8 @@ function AccountCard({
           </div>
           <h3 className="font-bold text-slate-900 mt-2 truncate">{displayName}</h3>
           <p className="text-xs text-slate-400 mt-0.5 truncate">{subtitle}</p>
-          <p className={`mt-3 text-xl sm:text-2xl font-bold tabular-nums break-words ${bal >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
-            {formatCurrency(bal, currency)}
+          <p className={`mt-3 text-xl sm:text-2xl font-bold tabular-nums break-words ${displayBal >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
+            {formatCurrency(displayBal, currency)}
           </p>
         </CardBody>
       </Card>
@@ -127,6 +128,13 @@ function accountBalance(acc: Account, currency: 'PKR' | 'SAR') {
   return currency === 'SAR'
     ? Number(acc.balanceSar || 0)
     : Number(acc.balancePkr ?? acc.balance);
+}
+
+/** Revenue accounts store credit-normal balances as negative internally. */
+function displayAccountBalance(acc: Account, currency: 'PKR' | 'SAR') {
+  const raw = accountBalance(acc, currency);
+  if (acc.type === 'REVENUE' || acc.code === 'INCOME-001') return Math.abs(raw);
+  return raw;
 }
 
 function CompanyAgencySummary({
@@ -212,7 +220,7 @@ function CompanyAgencySummary({
               </TableHead>
               <TableBody>
                 {companyAccounts.map((acc) => {
-                  const bal = accountBalance(acc, currency);
+                  const bal = displayAccountBalance(acc, currency);
                   return (
                     <TableRow key={acc.id}>
                       <TableCell className="font-medium">{acc.name}</TableCell>
