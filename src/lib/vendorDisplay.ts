@@ -21,7 +21,7 @@ export function formatCustomerDisplay(customer: CustomerLike, bookingNumber?: st
   }
   const base = [customer.firstName, customer.lastName]
     .map((part) => part?.trim())
-    .filter(Boolean)
+    .filter((part) => part && part !== '-')
     .join(' ');
   if (!base) return fallback;
   return bookingNumber ? `${base} (${bookingNumber})` : base;
