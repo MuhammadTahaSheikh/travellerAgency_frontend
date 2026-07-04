@@ -1,26 +1,23 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { X } from 'lucide-react';
 import api from '@/lib/api';
 import { Booking, ApiResponse, VendorPostingSummary } from '@/types';
 import { formatCurrency, LoadingSpinner, Badge } from '@/components/ui/Common';
 import { Button } from '@/components/ui/Button';
-import { canDirectPost } from '@/lib/bookingStatus';
-import { User } from '@/types';
 
 type BookingPostingModalProps = {
   booking: Booking | null;
   open: boolean;
   onClose: () => void;
   onSuccess?: () => void;
-  user: User | null;
 };
 
-export function BookingPostingModal({ booking, open, onClose, onSuccess, user }: BookingPostingModalProps) {
+export function BookingPostingModal({ booking, open, onClose }: BookingPostingModalProps) {
   const [detail, setDetail] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(false);
-  const [acting, setActing] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || !booking?.id) {
@@ -37,53 +34,25 @@ export function BookingPostingModal({ booking, open, onClose, onSuccess, user }:
   if (!open || !booking) return null;
 
   const postings = detail?.vendorPostings || [];
-  const directPost = canDirectPost(user);
-
-  const handleDirectPost = async (posting: VendorPostingSummary) => {
-    if (!confirm(`Post "${posting.description}" to vendor ledger?`)) return;
-    setActing(posting.id);
-    try {
-      await api.post(`/bookings/${booking.id}/vendor-postings/${posting.id}/confirm`, {});
-      alert('Vendor posting confirmed');
-      onSuccess?.();
-      onClose();
-    } catch (err) {
-      alert((err as Error).message);
-    } finally {
-      setActing(null);
-    }
-  };
-
-  const handleRequestPosting = async (posting: VendorPostingSummary) => {
-    if (!confirm(`Send posting request for "${posting.description}" to Super Admin?`)) return;
-    setActing(posting.id);
-    try {
-      const res = await api.post<ApiResponse<unknown> & { message?: string }>('/posting-requests', {
-        bookingId: booking.id,
-        vendorPostingId: posting.id,
-      });
-      alert(res.message || 'Posting request sent');
-      onSuccess?.();
-      onClose();
-    } catch (err) {
-      alert((err as Error).message);
-    } finally {
-      setActing(null);
-    }
-  };
 
   const customerName = detail?.guestName
     || detail?.customer?.companyName
     || `${detail?.customer?.firstName || ''} ${detail?.customer?.lastName || ''}`.trim()
     || '—';
 
+  const statusLabel = (posting: VendorPostingSummary) => {
+    if (posting.status === 'POSTED') return 'Posted';
+    if (posting.status === 'UNASSIGNED' || !posting.vendor?.id) return 'Needs vendor';
+    return 'Ready to post';
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-xl">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Edit Posting Status</h2>
-            <p className="text-sm text-slate-500">{booking.bookingNumber} — read-only booking, posting only</p>
+            <h2 className="text-xl font-bold text-slate-900">Posting Status</h2>
+            <p className="text-sm text-slate-500">{booking.bookingNumber} — read-only summary</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <X className="h-5 w-5" />
@@ -95,6 +64,17 @@ export function BookingPostingModal({ booking, open, onClose, onSuccess, user }:
             <LoadingSpinner label="Loading posting details..." />
           ) : (
             <>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <p className="font-semibold">Vendor assign aur post sirf Vendor Postings page se</p>
+                <p className="mt-1 text-amber-800">
+                  Pehle <strong>Needs Vendor</strong> tab par vendor select karein, phir <strong>Ready to Post</strong> se post ya request bhejein.
+                  Booking se yahan request nahi jati.
+                </p>
+                <Link href="/vendor-postings" className="inline-block mt-2 font-semibold text-teal-700 hover:text-teal-900 underline">
+                  Open Vendor Postings →
+                </Link>
+              </div>
+
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div><span className="text-slate-500">Customer:</span> <span className="font-medium">{customerName}</span></div>
                 <div><span className="text-slate-500">Amount:</span> <span className="font-medium">{formatCurrency(detail?.totalAmount || booking.totalAmount)}</span></div>
@@ -102,49 +82,24 @@ export function BookingPostingModal({ booking, open, onClose, onSuccess, user }:
               </div>
 
               {postings.length === 0 ? (
-                <p className="text-sm text-slate-500">No vendor postings yet. Postings are created when the booking is confirmed.</p>
+                <p className="text-sm text-slate-500">No service costs recorded yet for this booking.</p>
               ) : (
                 <div className="space-y-3">
                   {postings.map((posting) => (
-                    <div key={posting.id} className="rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-slate-900">{posting.description}</p>
-                        <p className="text-sm text-slate-500">
-                          {posting.serviceType} · {posting.vendor?.name || 'No vendor'} · {formatCurrency(posting.expectedCost)}
-                        </p>
-                        <span className={`inline-flex mt-2 px-2 py-0.5 rounded text-xs font-semibold ${
-                          posting.status === 'POSTED' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-                        }`}>
-                          {posting.status}
-                        </span>
-                      </div>
-                      {posting.status === 'PENDING' && (
-                        <div className="flex flex-col items-end gap-1 shrink-0">
-                          {!posting.vendor?.id && (
-                            <p className="text-xs text-amber-700">Assign vendor on Vendor Postings before posting</p>
-                          )}
-                          {directPost ? (
-                            <Button
-                              type="button"
-                              loading={acting === posting.id}
-                              disabled={!posting.vendor?.id}
-                              onClick={() => handleDirectPost(posting)}
-                            >
-                              Post Now
-                            </Button>
-                          ) : (
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              loading={acting === posting.id}
-                              disabled={!posting.vendor?.id}
-                              onClick={() => handleRequestPosting(posting)}
-                            >
-                              Request Posting
-                            </Button>
-                          )}
-                        </div>
-                      )}
+                    <div key={posting.id} className="rounded-xl border border-slate-200 p-4">
+                      <p className="font-medium text-slate-900">{posting.description}</p>
+                      <p className="text-sm text-slate-500">
+                        {posting.serviceType} · {posting.vendor?.name || 'Vendor not assigned'} · {formatCurrency(posting.expectedCost)}
+                      </p>
+                      <span className={`inline-flex mt-2 px-2 py-0.5 rounded text-xs font-semibold ${
+                        posting.status === 'POSTED'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : posting.status === 'UNASSIGNED' || !posting.vendor?.id
+                            ? 'bg-slate-100 text-slate-700'
+                            : 'bg-amber-50 text-amber-700'
+                      }`}>
+                        {statusLabel(posting)}
+                      </span>
                     </div>
                   ))}
                 </div>

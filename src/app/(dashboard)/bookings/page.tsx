@@ -847,8 +847,6 @@ export default function BookingsPage() {
         booking={postingBooking}
         open={!!postingBooking}
         onClose={() => setPostingBooking(null)}
-        onSuccess={loadData}
-        user={user}
       />
       <BookingPricingModal
         booking={pricingBooking}

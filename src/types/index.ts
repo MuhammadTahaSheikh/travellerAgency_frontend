@@ -111,7 +111,7 @@ export interface VendorPostingSummary {
   description: string;
   expectedCost: number;
   actualCost?: number | null;
-  status: 'PENDING' | 'POSTED' | 'CANCELLED';
+  status: 'UNASSIGNED' | 'PENDING' | 'POSTED' | 'CANCELLED';
   serviceType: string;
   vendor?: { id: string; name: string };
 }

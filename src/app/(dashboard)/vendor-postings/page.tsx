@@ -30,7 +30,7 @@ export default function VendorPostingsPage() {
   const [postings, setPostings] = useState<VendorPosting[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('PENDING');
+  const [filter, setFilter] = useState('UNASSIGNED');
   const [editing, setEditing] = useState<VendorPosting | null>(null);
   const [editForm, setEditForm] = useState({ vendorId: '', expectedCost: '', dueDate: '', description: '' });
   const [showCreate, setShowCreate] = useState(false);
@@ -71,6 +71,10 @@ export default function VendorPostingsPage() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editing) return;
+    if (!editForm.vendorId) {
+      alert('Please select a vendor. The posting will move to Ready to Post after vendor is assigned.');
+      return;
+    }
     setSaving(true);
     try {
       await api.put(`/vendor-postings/${editing.id}`, {
@@ -124,7 +128,7 @@ export default function VendorPostingsPage() {
     <div>
       <PageHeader
         title="Vendor Postings"
-        subtitle="Manage instant and pending vendor costs — editable until confirmed"
+        subtitle="Assign vendor first (Needs Vendor), then post to ledger (Ready to Post)"
         action={<Button onClick={() => setShowCreate(!showCreate)}><Plus className="w-4 h-4 mr-2" />Add Posting</Button>}
       />
 
@@ -134,10 +138,16 @@ export default function VendorPostingsPage() {
         </div>
       )}
 
-      <div className="flex gap-2 mb-4">
-        {['PENDING', 'POSTED', 'CANCELLED', ''].map((s) => (
-          <Button key={s || 'all'} variant={filter === s ? 'primary' : 'secondary'} onClick={() => setFilter(s)}>
-            {s || 'All'}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {[
+          { value: 'UNASSIGNED', label: 'Needs Vendor' },
+          { value: 'PENDING', label: 'Ready to Post' },
+          { value: 'POSTED', label: 'Posted' },
+          { value: 'CANCELLED', label: 'Cancelled' },
+          { value: '', label: 'All' },
+        ].map((s) => (
+          <Button key={s.value || 'all'} variant={filter === s.value ? 'primary' : 'secondary'} onClick={() => setFilter(s.value)}>
+            {s.label}
           </Button>
         ))}
       </div>
@@ -165,7 +175,9 @@ export default function VendorPostingsPage() {
       {editing && (
         <Card className="mb-6">
           <CardBody>
-            <h3 className="font-bold mb-4">Edit Pending Posting</h3>
+            <h3 className="font-bold mb-4">
+              {editing.status === 'UNASSIGNED' ? 'Assign Vendor' : 'Edit Pending Posting'}
+            </h3>
             <form onSubmit={handleUpdate} className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <SearchableSelect label="Vendor" value={editForm.vendorId} onChange={(v) => setEditForm({ ...editForm, vendorId: v })} onSearch={searchVendors} options={[{ value: '', label: 'Select vendor' }]} />
               <Input label="Expected Cost" type="number" value={editForm.expectedCost} onChange={(e) => setEditForm({ ...editForm, expectedCost: e.target.value })} />
@@ -220,10 +232,16 @@ export default function VendorPostingsPage() {
                         <TableCell><Badge status={p.status}>{p.status}</Badge></TableCell>
                         <TableCell align="right">
                           <div className="flex justify-end gap-1">
-                            {p.status === 'PENDING' && (
+                            {(p.status === 'PENDING' || p.status === 'UNASSIGNED') && (
                               <>
-                                <Button variant="secondary" onClick={() => startEdit(p)} title="Edit"><Pencil className="w-4 h-4" /></Button>
-                                <Button variant="secondary" onClick={() => handleConfirm(p)} title="Post to ledger"><CheckCircle className="w-4 h-4 text-green-600" /></Button>
+                                <Button variant="secondary" onClick={() => startEdit(p)} title="Edit">
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                {p.status === 'PENDING' && p.vendor?.id && (
+                                  <Button variant="secondary" onClick={() => handleConfirm(p)} title="Post to ledger">
+                                    <CheckCircle className="w-4 h-4 text-green-600" />
+                                  </Button>
+                                )}
                               </>
                             )}
                           </div>
