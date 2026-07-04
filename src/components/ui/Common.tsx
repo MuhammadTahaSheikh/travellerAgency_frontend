@@ -4,11 +4,12 @@ import { Inbox } from 'lucide-react';
 export { formatCurrency, getCurrencyCode, getPriceLabel } from '@/lib/currency';
 
 const statusColors: Record<string, string> = {
+  DRAFT: 'bg-slate-100 text-slate-700 ring-slate-500/20',
   PENDING: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+  REQUEST_CONFIRMATION: 'bg-sky-50 text-sky-700 ring-sky-600/20',
   CONFIRMED: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
   CANCELLED: 'bg-red-50 text-red-700 ring-red-600/20',
   COMPLETED: 'bg-blue-50 text-blue-700 ring-blue-600/20',
-  DRAFT: 'bg-slate-100 text-slate-600 ring-slate-500/20',
   SENT: 'bg-sky-50 text-sky-700 ring-sky-600/20',
   PAID: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
   PARTIAL: 'bg-orange-50 text-orange-700 ring-orange-600/20',

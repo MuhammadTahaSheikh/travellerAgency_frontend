@@ -30,7 +30,7 @@ export function canModifyBooking(user: User | null, booking: Booking): boolean {
   if (isSuperAdmin(user)) return true;
   const role = getUserRole(user);
   if (role === 'ADMIN') return true;
-  return booking.status !== 'CONFIRMED';
+  return booking.status !== 'CONFIRMED' && booking.status !== 'REQUEST_CONFIRMATION';
 }
 
 export function canDirectPost(user: User | null): boolean {

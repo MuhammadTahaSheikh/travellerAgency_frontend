@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { CheckCircle, XCircle } from 'lucide-react';
 import api from '@/lib/api';
-import { Invoice, PostingRequest, ApiResponse } from '@/types';
+import { Invoice, PostingRequest, BookingConfirmationRequest, ApiResponse } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody } from '@/components/ui/Card';
 import { PageHeader, LoadingSpinner, formatCurrency, formatDate, EmptyState } from '@/components/ui/Common';
@@ -16,13 +16,15 @@ interface ApprovalInvoice extends Invoice {
   vendorPostings?: { id: string; description: string; expectedCost: number; status: string; vendor?: { name: string } }[];
 }
 
-type Tab = 'payments' | 'posting';
+type Tab = 'payments' | 'booking' | 'posting';
 
 export default function ApprovalsPage() {
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get('tab') === 'posting' ? 'posting' : 'payments';
+  const tabParam = searchParams.get('tab');
+  const initialTab: Tab = tabParam === 'posting' ? 'posting' : tabParam === 'booking' ? 'booking' : 'payments';
   const [tab, setTab] = useState<Tab>(initialTab);
   const [invoices, setInvoices] = useState<ApprovalInvoice[]>([]);
+  const [bookingRequests, setBookingRequests] = useState<BookingConfirmationRequest[]>([]);
   const [postingRequests, setPostingRequests] = useState<PostingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
@@ -31,10 +33,12 @@ export default function ApprovalsPage() {
     setLoading(true);
     Promise.all([
       api.get<ApiResponse<ApprovalInvoice[]>>('/approvals/pending'),
+      api.get<ApiResponse<BookingConfirmationRequest[]>>('/booking-confirmation-requests/pending'),
       api.get<ApiResponse<PostingRequest[]>>('/posting-requests/pending'),
     ])
-      .then(([invRes, postRes]) => {
+      .then(([invRes, bookRes, postRes]) => {
         setInvoices(invRes.data || []);
+        setBookingRequests(bookRes.data || []);
         setPostingRequests(postRes.data || []);
       })
       .catch(console.error)
@@ -63,6 +67,37 @@ export default function ApprovalsPage() {
     setActing(inv.id);
     try {
       await api.post(`/approvals/${inv.id}/reject`, { reason });
+      loadData();
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setActing(null);
+    }
+  };
+
+  const handleApproveBooking = async (req: BookingConfirmationRequest) => {
+    if (!confirm(`Confirm booking ${req.booking?.bookingNumber}?`)) return;
+    setActing(req.id);
+    try {
+      const res = await api.post<ApiResponse<BookingConfirmationRequest> & { message?: string }>(
+        `/booking-confirmation-requests/${req.id}/approve`,
+        {}
+      );
+      alert(res.message || 'Booking confirmed');
+      loadData();
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setActing(null);
+    }
+  };
+
+  const handleRejectBooking = async (req: BookingConfirmationRequest) => {
+    const reason = prompt('Rejection reason (optional):');
+    if (reason === null) return;
+    setActing(req.id);
+    try {
+      await api.post(`/booking-confirmation-requests/${req.id}/reject`, { reason });
       loadData();
     } catch (err) {
       alert((err as Error).message);
@@ -103,10 +138,10 @@ export default function ApprovalsPage() {
     <div>
       <PageHeader
         title="Approvals"
-        subtitle="Super Admin review queue — payment approvals and vendor posting requests"
+        subtitle="Super Admin review queue — payments, booking confirmations, and vendor postings"
       />
 
-      <div className="mb-6 inline-flex rounded-xl border border-slate-200 p-1 bg-slate-50">
+      <div className="mb-6 inline-flex flex-wrap rounded-xl border border-slate-200 p-1 bg-slate-50 gap-1">
         <button
           type="button"
           onClick={() => setTab('payments')}
@@ -115,6 +150,15 @@ export default function ApprovalsPage() {
           }`}
         >
           Payment Approvals ({invoices.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('booking')}
+          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+            tab === 'booking' ? 'bg-teal-600 text-white shadow' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          Booking Confirmations ({bookingRequests.length})
         </button>
         <button
           type="button"
@@ -155,9 +199,6 @@ export default function ApprovalsPage() {
                           {inv.customer?.customerType === 'B2B'
                             ? inv.customer.companyName
                             : `${inv.customer?.firstName} ${inv.customer?.lastName}`}
-                          {inv.customer?.tradePartnerId && (
-                            <span className="block text-xs text-slate-500">{inv.customer.tradePartnerId}</span>
-                          )}
                         </TableCell>
                         <TableCell>{formatCurrency(inv.totalAmount)}</TableCell>
                         <TableCell className="text-teal-700">{formatCurrency(inv.paidAmount)}</TableCell>
@@ -166,24 +207,70 @@ export default function ApprovalsPage() {
                           {inv.items?.map((i) => (
                             <div key={i.id} className="py-0.5">
                               {i.serviceType}: {i.description} ({formatCurrency(i.amount)})
-                              {i.costAmount ? <span className="text-slate-500"> · cost {formatCurrency(i.costAmount)}</span> : null}
                             </div>
                           ))}
                         </TableCell>
-                        <TableCell className="hidden xl:table-cell text-sm">
-                          {inv.vendorPostings?.length ? inv.vendorPostings.map((vp) => (
-                            <div key={vp.id} className="py-0.5">
-                              {vp.status}: {vp.description} ({formatCurrency(vp.expectedCost)})
-                              {vp.vendor && <span className="text-slate-500"> · {vp.vendor.name}</span>}
-                            </div>
-                          )) : '—'}
-                        </TableCell>
+                        <TableCell className="hidden xl:table-cell text-sm">—</TableCell>
                         <TableCell align="right">
                           <div className="flex justify-end gap-1">
                             <Button variant="secondary" loading={acting === inv.id} onClick={() => handleApprove(inv)} title="Approve">
                               <CheckCircle className="w-4 h-4 text-green-600" />
                             </Button>
                             <Button variant="secondary" loading={acting === inv.id} onClick={() => handleReject(inv)} title="Reject">
+                              <XCircle className="w-4 h-4 text-red-600" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableWrapper>
+            )}
+          </CardBody>
+        </Card>
+      ) : tab === 'booking' ? (
+        <Card>
+          <CardBody className="p-0 sm:p-0">
+            {bookingRequests.length === 0 ? (
+              <EmptyState message="No booking confirmation requests awaiting approval." />
+            ) : (
+              <TableWrapper>
+                <Table>
+                  <TableHead>
+                    <tr>
+                      <TableHeaderCell>Booking</TableHeaderCell>
+                      <TableHeaderCell>Customer</TableHeaderCell>
+                      <TableHeaderCell>Amount</TableHeaderCell>
+                      <TableHeaderCell>Services</TableHeaderCell>
+                      <TableHeaderCell>Requested By</TableHeaderCell>
+                      <TableHeaderCell>Date</TableHeaderCell>
+                      <TableHeaderCell align="right">Actions</TableHeaderCell>
+                    </tr>
+                  </TableHead>
+                  <TableBody>
+                    {bookingRequests.map((req) => (
+                      <TableRow key={req.id}>
+                        <TableCell className="font-semibold">{req.booking?.bookingNumber || '—'}</TableCell>
+                        <TableCell>
+                          {req.booking?.customer?.companyName
+                            || `${req.booking?.customer?.firstName || ''} ${req.booking?.customer?.lastName || ''}`.trim()
+                            || '—'}
+                        </TableCell>
+                        <TableCell>{formatCurrency(req.booking?.totalAmount || 0)}</TableCell>
+                        <TableCell className="text-sm">
+                          {req.booking?.serviceItems?.map((s) => s.serviceType).join(', ') || '—'}
+                        </TableCell>
+                        <TableCell>
+                          {req.requestedBy ? `${req.requestedBy.firstName} ${req.requestedBy.lastName}` : '—'}
+                        </TableCell>
+                        <TableCell>{formatDate(req.createdAt)}</TableCell>
+                        <TableCell align="right">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="secondary" loading={acting === req.id} onClick={() => handleApproveBooking(req)} title="Confirm booking">
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                            </Button>
+                            <Button variant="secondary" loading={acting === req.id} onClick={() => handleRejectBooking(req)} title="Reject">
                               <XCircle className="w-4 h-4 text-red-600" />
                             </Button>
                           </div>
@@ -224,12 +311,7 @@ export default function ApprovalsPage() {
                             || `${req.booking?.customer?.firstName || ''} ${req.booking?.customer?.lastName || ''}`.trim()
                             || '—'}
                         </TableCell>
-                        <TableCell className="text-sm">
-                          {req.vendorPosting?.description || '—'}
-                          {req.vendorPosting?.vendor && (
-                            <span className="block text-xs text-slate-500">{req.vendorPosting.vendor.name}</span>
-                          )}
-                        </TableCell>
+                        <TableCell className="text-sm">{req.vendorPosting?.description || '—'}</TableCell>
                         <TableCell>{formatCurrency(req.vendorPosting?.expectedCost || 0)}</TableCell>
                         <TableCell>
                           {req.requestedBy ? `${req.requestedBy.firstName} ${req.requestedBy.lastName}` : '—'}

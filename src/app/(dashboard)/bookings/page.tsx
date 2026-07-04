@@ -17,7 +17,7 @@ import {
   Invoice,
   ApiResponse,
 } from '@/types';
-import { canCreateResource, canEditResource, canDeleteResource, canModifyBooking } from '@/lib/permissions';
+import { canCreateResource, canEditResource, canDeleteResource, canModifyBooking, canDirectConfirmBooking } from '@/lib/permissions';
 import { getPaymentStatus, getPostingStatus, paymentStatusColor, postingStatusColor } from '@/lib/bookingStatus';
 import { shareInvoiceViaWhatsApp } from '@/lib/whatsapp';
 import { useExchangeRate } from '@/contexts/ExchangeRateContext';
@@ -76,7 +76,7 @@ const emptyForm = {
   travelDate: '',
   returnDate: '',
   notes: '',
-  status: 'PENDING',
+  status: 'DRAFT',
   serviceItems: [] as BookingServiceItem[],
 };
 
@@ -541,8 +541,9 @@ export default function BookingsPage() {
                 )}
                 <SearchableSelect label="Package (optional)" value={form.packageId} onChange={(v) => updateForm({ packageId: v })} onSearch={searchPackages} options={[{ value: '', label: 'No package' }]} />
                 <Select label="Status" value={form.status} onChange={(e) => updateForm({ status: e.target.value })} options={[
-                  { value: 'PENDING', label: 'Pending' },
-                  { value: 'CONFIRMED', label: 'Confirmed (auto-invoice & ledger)' },
+                  { value: 'DRAFT', label: 'Draft (creates invoice)' },
+                  { value: 'REQUEST_CONFIRMATION', label: 'Request Confirmation' },
+                  ...(canDirectConfirmBooking(user) ? [{ value: 'CONFIRMED', label: 'Confirmed (auto-invoice & ledger)' }] : []),
                   { value: 'COMPLETED', label: 'Completed' },
                   { value: 'CANCELLED', label: 'Cancelled' },
                 ]} />
@@ -799,7 +800,7 @@ export default function BookingsPage() {
                             {paymentStatus}
                           </span>
                         </TableCell>
-                        <TableCell><Badge status={b.status}>{b.status}</Badge></TableCell>
+                        <TableCell><Badge status={b.status}>{b.status === 'REQUEST_CONFIRMATION' ? 'Request Confirmation' : b.status}</Badge></TableCell>
                         <TableCell className="hidden lg:table-cell">
                           <div className="flex items-center gap-2">
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ring-1 ring-inset ${postingStatusColor(postingStatus)}`}>
