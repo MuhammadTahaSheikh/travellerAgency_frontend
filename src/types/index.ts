@@ -316,6 +316,9 @@ export interface DashboardStats {
   paidExpenses?: number;
   actualExpenses?: number;
   pendingExpenses?: number;
+  totalCostOfSales?: number;
+  unpostedLedgerTotal?: number;
+  actualProfit?: number;
   estimatedProfit?: number;
   netProfit: number;
   unreadNotifications: number;

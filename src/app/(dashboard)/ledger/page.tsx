@@ -38,7 +38,7 @@ interface LedgerTransaction {
   journalEntry: { entryNumber: string; date: string; description: string };
 }
 
-type AccountGroupKey = 'all' | 'company' | 'customers' | 'vendors' | 'employees';
+type AccountGroupKey = 'all' | 'company' | 'customers' | 'vendors' | 'employees' | 'unposted';
 
 type JournalLineForm = {
   accountId: string;
@@ -67,6 +67,7 @@ const groupFilters: { id: AccountGroupKey; label: string }[] = [
   { id: 'company', label: 'Company' },
   { id: 'customers', label: 'Customers' },
   { id: 'vendors', label: 'Vendors' },
+  { id: 'unposted', label: 'Unposted Costs' },
   { id: 'employees', label: 'Employees' },
 ];
 
@@ -625,6 +626,15 @@ export default function LedgerPage() {
                   currency={currency}
                   onViewAccount={viewAccountLedger}
                 />
+                {grouped.unposted && (
+                  <GroupSection
+                    title={grouped.unposted.label}
+                    accounts={grouped.unposted.accounts}
+                    totalBalance={groupTotalBalance(grouped.unposted, currency)}
+                    currency={currency}
+                    onViewAccount={viewAccountLedger}
+                  />
+                )}
                 <GroupSection
                   title={grouped.employees.label}
                   accounts={grouped.employees.accounts}
@@ -803,7 +813,7 @@ export default function LedgerPage() {
               </CardHeader>
               <CardBody className="space-y-8">
                 {trialBalance.grouped ? (
-                  (['company', 'customers', 'vendors', 'employees'] as const).map((key) => {
+                  (['company', 'customers', 'vendors', 'unposted', 'employees'] as const).map((key) => {
                     const group = trialBalance.grouped![key];
                     if (!group?.accounts.length) return null;
                     return (
