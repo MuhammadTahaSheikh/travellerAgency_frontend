@@ -121,6 +121,116 @@ function AccountCard({
   );
 }
 
+function accountBalance(acc: Account, currency: 'PKR' | 'SAR') {
+  return currency === 'SAR'
+    ? Number(acc.balanceSar || 0)
+    : Number(acc.balancePkr ?? acc.balance);
+}
+
+function CompanyAgencySummary({
+  grouped,
+  currency,
+}: {
+  grouped: Record<string, LedgerAccountGroup>;
+  currency: 'PKR' | 'SAR';
+}) {
+  const companyAccounts = grouped.company?.accounts ?? [];
+  const customerAccounts = grouped.customers?.accounts ?? [];
+  const vendorAccounts = grouped.vendors?.accounts ?? [];
+  const unpostedAccounts = grouped.unposted?.accounts ?? [];
+
+  const totalAvailable = companyAccounts
+    .filter((a) => (a.type === 'CASH' || a.type === 'BANK') && !a.customerId && !a.vendorId && !a.employeeId)
+    .reduce((s, a) => s + accountBalance(a, currency), 0);
+
+  const amountToReceive = customerAccounts.reduce(
+    (s, a) => s + Math.max(0, accountBalance(a, currency)),
+    0,
+  );
+
+  const vendorPayable = vendorAccounts.reduce((s, a) => {
+    const b = accountBalance(a, currency);
+    return b < 0 ? s + Math.abs(b) : s;
+  }, 0);
+  const unpostedPayable = unpostedAccounts.reduce(
+    (s, a) => s + Math.abs(accountBalance(a, currency)),
+    0,
+  );
+  const amountToPay = vendorPayable + unpostedPayable;
+  const grossProfit = totalAvailable + amountToReceive - amountToPay;
+
+  const metricClass = (value: number) =>
+    value >= 0 ? 'text-teal-700' : 'text-red-600';
+
+  return (
+    <div className="mb-6 rounded-xl border border-teal-100 bg-gradient-to-br from-teal-50/80 to-white p-4 sm:p-5 space-y-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+        <div className="rounded-lg bg-white border border-slate-200 p-3 sm:p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Available Amount</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Cash + Bank accounts</p>
+          <p className={`mt-2 text-lg sm:text-xl font-bold tabular-nums ${metricClass(totalAvailable)}`}>
+            {formatCurrency(totalAvailable, currency)}
+          </p>
+        </div>
+        <div className="rounded-lg bg-white border border-slate-200 p-3 sm:p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Amount To Be Received</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Customer receivables</p>
+          <p className={`mt-2 text-lg sm:text-xl font-bold tabular-nums ${metricClass(amountToReceive)}`}>
+            {formatCurrency(amountToReceive, currency)}
+          </p>
+        </div>
+        <div className="rounded-lg bg-white border border-slate-200 p-3 sm:p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Amount To Be Paid</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Vendors + unposted costs</p>
+          <p className={`mt-2 text-lg sm:text-xl font-bold tabular-nums ${metricClass(amountToPay)}`}>
+            {formatCurrency(amountToPay, currency)}
+          </p>
+        </div>
+        <div className="rounded-lg bg-white border border-teal-200 p-3 sm:p-4 bg-teal-50/50">
+          <p className="text-xs font-semibold uppercase tracking-wide text-teal-800">Gross Profit</p>
+          <p className="text-[11px] text-teal-600 mt-0.5">Available + Receivable − Payable</p>
+          <p className={`mt-2 text-lg sm:text-xl font-bold tabular-nums ${metricClass(grossProfit)}`}>
+            {formatCurrency(grossProfit, currency)}
+          </p>
+        </div>
+      </div>
+
+      {companyAccounts.length > 0 && (
+        <div>
+          <h4 className="text-sm font-semibold text-slate-800 mb-2">Company Account Balances</h4>
+          <TableWrapper>
+            <Table>
+              <TableHead>
+                <tr>
+                  <TableHeaderCell>Account</TableHeaderCell>
+                  <TableHeaderCell className="hidden sm:table-cell">Code</TableHeaderCell>
+                  <TableHeaderCell className="hidden md:table-cell">Type</TableHeaderCell>
+                  <TableHeaderCell align="right">Balance</TableHeaderCell>
+                </tr>
+              </TableHead>
+              <TableBody>
+                {companyAccounts.map((acc) => {
+                  const bal = accountBalance(acc, currency);
+                  return (
+                    <TableRow key={acc.id}>
+                      <TableCell className="font-medium">{acc.name}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-slate-500">{acc.code}</TableCell>
+                      <TableCell className="hidden md:table-cell text-slate-500">{acc.type}</TableCell>
+                      <TableCell align="right" className={`font-semibold tabular-nums ${bal >= 0 ? 'text-teal-700' : 'text-red-600'}`}>
+                        {formatCurrency(bal, currency)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableWrapper>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GroupSection({
   title,
   accounts,
@@ -130,6 +240,7 @@ function GroupSection({
   canManageCompany,
   onEditAccount,
   onDeactivateAccount,
+  summary,
 }: {
   title: string;
   accounts: Account[];
@@ -139,8 +250,9 @@ function GroupSection({
   canManageCompany?: boolean;
   onEditAccount?: (acc: Account) => void;
   onDeactivateAccount?: (acc: Account) => void;
+  summary?: React.ReactNode;
 }) {
-  if (accounts.length === 0) return null;
+  if (accounts.length === 0 && !summary) return null;
   return (
     <div className="mb-8 last:mb-0">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 pb-2 border-b border-slate-200">
@@ -154,6 +266,8 @@ function GroupSection({
           </p>
         )}
       </div>
+      {summary}
+      {accounts.length > 0 && (
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {accounts.map((acc) => {
           const isCompanyCashBank = (acc.type === 'CASH' || acc.type === 'BANK') && !acc.customerId && !acc.vendorId;
@@ -170,6 +284,7 @@ function GroupSection({
           );
         })}
       </div>
+      )}
     </div>
   );
 }
@@ -611,6 +726,7 @@ export default function LedgerPage() {
                   canManageCompany={isSuperAdmin(user)}
                   onEditAccount={startEditAccount}
                   onDeactivateAccount={handleDeactivateAccount}
+                  summary={<CompanyAgencySummary grouped={grouped} currency={currency} />}
                 />
                 <GroupSection
                   title={grouped.customers.label}
@@ -644,7 +760,11 @@ export default function LedgerPage() {
                 />
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div>
+                {accountGroup === 'company' && grouped && (
+                  <CompanyAgencySummary grouped={grouped} currency={currency} />
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filteredAccounts.map((acc) => (
                   <AccountCard
                     key={acc.id}
@@ -656,6 +776,7 @@ export default function LedgerPage() {
                     onDeactivate={() => handleDeactivateAccount(acc)}
                   />
                 ))}
+                </div>
               </div>
             )
           )}
