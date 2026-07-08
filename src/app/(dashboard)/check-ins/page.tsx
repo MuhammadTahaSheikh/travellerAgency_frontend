@@ -216,8 +216,9 @@ export default function CheckInsPage() {
                       <TableHeaderCell>Guest</TableHeaderCell>
                       <TableHeaderCell>Customer</TableHeaderCell>
                       <TableHeaderCell>Details</TableHeaderCell>
+                      <TableHeaderCell>Vendor</TableHeaderCell>
                       <TableHeaderCell>Date</TableHeaderCell>
-                      <TableHeaderCell>Vendor Posted</TableHeaderCell>
+                      <TableHeaderCell>Posted</TableHeaderCell>
                     </tr>
                   </TableHead>
                   <TableBody>
@@ -238,9 +239,20 @@ export default function CheckInsPage() {
                           </TableCell>
                           <TableCell>{formatDate((c.scheduleType === 'TRANSPORT' ? c.transportDate : c.checkInDate) || '')}</TableCell>
                           <TableCell>
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${c.vendorPosted ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
-                              {c.vendorPosted ? 'Posted' : 'Not Posted'}
-                            </span>
+                            {(() => {
+                              const vendors = c.booking?.serviceItems
+                                ?.filter((s) => s.vendor?.name)
+                                .map((s) => s.vendor!.name) || [];
+                              const unique = [...new Set(vendors)];
+                              if (c.vendorPosted && unique.length > 0) {
+                                return <span className="text-sm font-medium text-slate-800">{unique.join(', ')}</span>;
+                              }
+                              return (
+                                <span className={`text-xs font-medium px-2 py-0.5 rounded ${c.vendorPosted ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
+                                  {c.vendorPosted ? 'Posted' : 'Not Posted'}
+                                </span>
+                              );
+                            })()}
                           </TableCell>
                         </TableRow>
                       );

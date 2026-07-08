@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
 import { X } from 'lucide-react';
 import api from '@/lib/api';
 import {
@@ -15,6 +16,8 @@ import { useExchangeRate } from '@/contexts/ExchangeRateContext';
 import { formatCurrency, LoadingSpinner, Badge } from '@/components/ui/Common';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { RootState } from '@/store';
+import { canModifyBooking } from '@/lib/permissions';
 
 type BookingPricingModalProps = {
   booking: Booking | null;
@@ -27,6 +30,7 @@ const toNum = (v: string | number | undefined) => parseFloat(String(v ?? 0)) || 
 const ROW_BASED_TYPES: BookingServiceItem['serviceType'][] = ['HOTEL', 'TRANSPORT'];
 
 export function BookingPricingModal({ booking, open, onClose, onSuccess }: BookingPricingModalProps) {
+  const user = useSelector((state: RootState) => state.auth.user);
   const { rate } = useExchangeRate();
   const pkrPerSar = rate?.pkrPerSar || rate?.manualDefault || 1;
   const [detail, setDetail] = useState<Booking | null>(null);
@@ -79,6 +83,8 @@ export function BookingPricingModal({ booking, open, onClose, onSuccess }: Booki
   if (!open || !booking) return null;
 
   const priceMode: PriceMode = detail?.priceMode || booking.priceMode || 'DETERMINED';
+  const bookingStatus = detail?.status || booking.status;
+  const costOnly = !canModifyBooking(user, bookingStatus);
   const counts: PassengerCounts = {
     adults: detail?.adults ?? booking.adults ?? 1,
     children: detail?.children ?? booking.children ?? 0,
@@ -107,9 +113,11 @@ export function BookingPricingModal({ booking, open, onClose, onSuccess }: Booki
       const builtItems = buildServiceItemsPayload(serviceItems, counts, priceMode, pkrPerSar);
       const payload = priceMode === 'DETERMINED'
         ? {
-            priceAdult: toNum(priceAdult),
-            priceChild: toNum(priceChild),
-            priceInfant: toNum(priceInfant),
+            ...(costOnly ? {} : {
+              priceAdult: toNum(priceAdult),
+              priceChild: toNum(priceChild),
+              priceInfant: toNum(priceInfant),
+            }),
             serviceItems: builtItems,
           }
         : { serviceItems: builtItems };
@@ -217,24 +225,26 @@ export function BookingPricingModal({ booking, open, onClose, onSuccess }: Booki
 
               {priceMode === 'DETERMINED' ? (
                 <>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-800 mb-3">Sale Prices (PKR)</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Input label="Sale / Adult" type="number" value={priceAdult} onChange={(e) => setPriceAdult(e.target.value)} hint={`${counts.adults} adult(s)`} />
-                      <Input label="Sale / Child" type="number" value={priceChild} onChange={(e) => setPriceChild(e.target.value)} hint={`${counts.children} child(ren)`} />
-                      <Input label="Sale / Infant" type="number" value={priceInfant} onChange={(e) => setPriceInfant(e.target.value)} hint={`${counts.infants} infant(s)`} />
+                  {!costOnly && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-800 mb-3">Sale Prices (PKR)</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Input label="Sale / Adult" type="number" value={priceAdult} onChange={(e) => setPriceAdult(e.target.value)} hint={`${counts.adults} adult(s)`} />
+                        <Input label="Sale / Child" type="number" value={priceChild} onChange={(e) => setPriceChild(e.target.value)} hint={`${counts.children} child(ren)`} />
+                        <Input label="Sale / Infant" type="number" value={priceInfant} onChange={(e) => setPriceInfant(e.target.value)} hint={`${counts.infants} infant(s)`} />
+                      </div>
+                      <p className="mt-2 text-xs text-slate-500">
+                        Total sale: {formatCurrency(counts.adults * toNum(priceAdult) + counts.children * toNum(priceChild) + counts.infants * toNum(priceInfant))}
+                      </p>
                     </div>
-                    <p className="mt-2 text-xs text-slate-500">
-                      Total sale: {formatCurrency(counts.adults * toNum(priceAdult) + counts.children * toNum(priceChild) + counts.infants * toNum(priceInfant))}
-                    </p>
-                  </div>
+                  )}
                   <div>
                     <h3 className="text-sm font-semibold text-slate-800 mb-3">Service Costs</h3>
                     {renderServiceCosts(true)}
                   </div>
                 </>
               ) : (
-                renderServiceCosts(false)
+                renderServiceCosts(costOnly)
               )}
             </>
           )}

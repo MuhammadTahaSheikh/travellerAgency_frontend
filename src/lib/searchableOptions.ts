@@ -64,10 +64,19 @@ export async function searchPackages(query: string): Promise<SelectOption[]> {
 
 export async function searchLedgerAccounts(query: string): Promise<SelectOption[]> {
   const res = await api.get<ApiResponse<Account[]>>(`/ledger/accounts?search=${encode(query)}`);
-  return (res.data || []).map((a) => ({
-    value: a.id,
-    label: `${a.name} (${a.type})`,
-  }));
+  return (res.data || []).map((a) => {
+    const vendorCode = a.vendor?.vendorCode;
+    const vendorLabel = a.vendor
+      ? formatVendorDisplay(a.vendor, a.name)
+      : a.name;
+    const suffix = a.vendor
+      ? ` (${a.vendor.category}${vendorCode ? ` · ${vendorCode}` : ''})`
+      : ` (${a.type})`;
+    return {
+      value: a.id,
+      label: `${vendorLabel}${suffix}`,
+    };
+  });
 }
 
 export async function searchPaymentAccounts(query: string): Promise<SelectOption[]> {

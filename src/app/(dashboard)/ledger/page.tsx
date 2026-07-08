@@ -354,7 +354,7 @@ export default function LedgerPage() {
     totalCredit: number;
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'accounts' | 'journal' | 'ledger' | 'trial'>('accounts');
+  const [activeTab, setActiveTab] = useState<'accounts' | 'journal' | 'ledger' | 'trial' | 'users'>('accounts');
   const [accountGroup, setAccountGroup] = useState<AccountGroupKey>('all');
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -376,7 +376,11 @@ export default function LedgerPage() {
   });
   const [showAccountForm, setShowAccountForm] = useState(false);
   const [accountSaving, setAccountSaving] = useState(false);
-  const [accountForm, setAccountForm] = useState({ name: '', type: 'BANK' as 'CASH' | 'BANK', description: '', employeeId: '' });
+  const [accountForm, setAccountForm] = useState({ name: '', type: 'BANK' as 'CASH' | 'BANK', description: '', employeeId: '', currency: 'PKR' as 'PKR' | 'SAR' });
+  const [userPerformance, setUserPerformance] = useState<{
+    userId: string; name: string; email: string; bookingCount: number; sales: number; cost: number; profit: number;
+  }[]>([]);
+  const [userPerformanceTotals, setUserPerformanceTotals] = useState<{ sales: number; cost: number; profit: number; bookingCount: number } | null>(null);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [editAccountForm, setEditAccountForm] = useState({ name: '', description: '', employeeId: '' });
   const [users, setUsers] = useState<{ id: string; firstName: string; lastName: string }[]>([]);
@@ -394,14 +398,17 @@ export default function LedgerPage() {
       api.get<ApiResponse<JournalEntry[]>>(`/ledger/journal-entries${query}`),
       api.get<ApiResponse<LedgerTransactionRow[]> & { currency: string }>(`/ledger/general-ledger${query}`),
       api.get<ApiResponse<typeof trialBalance>>(`/ledger/trial-balance?currency=${cur}`),
+      api.get<ApiResponse<typeof userPerformance> & { totals: typeof userPerformanceTotals }>(`/ledger/user-performance${buildQueryString({ startDate: dates.startDate, endDate: dates.endDate })}`),
       isSuperAdmin(user) ? api.get<ApiResponse<{ id: string; firstName: string; lastName: string }[]>>('/users?limit=100') : Promise.resolve({ data: [] }),
     ])
-      .then(([accRes, jeRes, glRes, tbRes, usersRes]) => {
+      .then(([accRes, jeRes, glRes, tbRes, upRes, usersRes]) => {
         setAccounts(accRes.data || []);
         setGrouped(accRes.grouped || null);
         setJournalEntries(jeRes.data || []);
         setLedgerTransactions(glRes.data || []);
         setTrialBalance(tbRes.data || null);
+        setUserPerformance(upRes.data || []);
+        setUserPerformanceTotals(upRes.totals || null);
         if (usersRes?.data) setUsers(usersRes.data);
       })
       .catch(console.error)
@@ -479,7 +486,7 @@ export default function LedgerPage() {
         employeeId: accountForm.employeeId || undefined,
       });
       setShowAccountForm(false);
-      setAccountForm({ name: '', type: 'BANK', description: '', employeeId: '' });
+      setAccountForm({ name: '', type: 'BANK', description: '', employeeId: '', currency: 'PKR' });
       loadData();
     } catch (err) {
       alert((err as Error).message);
@@ -620,6 +627,7 @@ export default function LedgerPage() {
 
   const tabs = [
     { id: 'accounts' as const, label: 'Accounts' },
+    { id: 'users' as const, label: 'User Performance' },
     { id: 'journal' as const, label: 'Journal Entries' },
     { id: 'ledger' as const, label: 'General Ledger' },
     { id: 'trial' as const, label: 'Trial Balance' },
@@ -719,6 +727,7 @@ export default function LedgerPage() {
             <form onSubmit={handleCreateAccount} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Input label="Account Name" value={accountForm.name} onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })} required placeholder="e.g. Meezan Bank" />
               <Select label="Type" value={accountForm.type} onChange={(e) => setAccountForm({ ...accountForm, type: e.target.value as 'CASH' | 'BANK' })} options={[{ value: 'BANK', label: 'Bank Account' }, { value: 'CASH', label: 'Cash Head' }]} />
+              <Select label="Currency" value={accountForm.currency} onChange={(e) => setAccountForm({ ...accountForm, currency: e.target.value as 'PKR' | 'SAR' })} options={[{ value: 'PKR', label: 'PKR — Pakistani Rupee' }, { value: 'SAR', label: 'SAR — Saudi Riyal' }]} />
               <SearchableSelect label="Assigned To (cash head)" value={accountForm.employeeId} onChange={(v) => setAccountForm({ ...accountForm, employeeId: v })} options={[{ value: '', label: 'None (shared)' }, ...users.map((u) => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))]} searchThreshold={99} />
               <Input label="Description" value={accountForm.description} onChange={(e) => setAccountForm({ ...accountForm, description: e.target.value })} />
               <div className="md:col-span-2 lg:col-span-4 flex gap-2">
@@ -966,6 +975,56 @@ export default function LedgerPage() {
                     showCounterAccountColumn={isAllAccountsLedgerView}
                     showBalanceColumn={!isAllAccountsLedgerView}
                   />
+                )}
+              </CardBody>
+            </Card>
+          )}
+
+          {activeTab === 'users' && (
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                  <h3 className="font-bold text-slate-900">User Performance</h3>
+                  {userPerformanceTotals && (
+                    <div className="text-xs sm:text-sm text-slate-500">
+                      Sales: <span className="font-semibold">{formatCurrency(userPerformanceTotals.sales, currency)}</span>
+                      {' · '}Cost: <span className="font-semibold">{formatCurrency(userPerformanceTotals.cost, currency)}</span>
+                      {' · '}Profit: <span className="font-semibold text-teal-700">{formatCurrency(userPerformanceTotals.profit, currency)}</span>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardBody className="p-0 sm:p-0">
+                {userPerformance.length === 0 ? (
+                  <EmptyState message="No confirmed bookings found for users in this period." />
+                ) : (
+                  <TableWrapper>
+                    <Table>
+                      <TableHead>
+                        <tr>
+                          <TableHeaderCell>User</TableHeaderCell>
+                          <TableHeaderCell>Bookings</TableHeaderCell>
+                          <TableHeaderCell align="right">Sales</TableHeaderCell>
+                          <TableHeaderCell align="right">Cost</TableHeaderCell>
+                          <TableHeaderCell align="right">Profit</TableHeaderCell>
+                        </tr>
+                      </TableHead>
+                      <TableBody>
+                        {userPerformance.map((row) => (
+                          <TableRow key={row.userId}>
+                            <TableCell>
+                              <div className="font-medium text-slate-900">{row.name}</div>
+                              <div className="text-xs text-slate-500">{row.email}</div>
+                            </TableCell>
+                            <TableCell>{row.bookingCount}</TableCell>
+                            <TableCell align="right">{formatCurrency(row.sales, currency)}</TableCell>
+                            <TableCell align="right">{formatCurrency(row.cost, currency)}</TableCell>
+                            <TableCell align="right" className="font-semibold text-teal-700">{formatCurrency(row.profit, currency)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableWrapper>
                 )}
               </CardBody>
             </Card>

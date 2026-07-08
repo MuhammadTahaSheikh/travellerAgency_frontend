@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import { Booking, ApiResponse } from '@/types';
 import { formatCurrency, formatDate, Badge, LoadingSpinner } from '@/components/ui/Common';
 import { formatVendorDisplay } from '@/lib/vendorDisplay';
+import { getPaymentStatus, getPostingStatus } from '@/lib/bookingStatus';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody } from '@/components/ui/Card';
 
@@ -38,6 +39,17 @@ export function BookingViewModal({ bookingId, open, onClose }: BookingViewModalP
     || `${booking?.customer?.firstName || ''} ${booking?.customer?.lastName || ''}`.trim()
     || '—';
 
+  const createdByName = booking?.createdBy
+    ? `${booking.createdBy.firstName} ${booking.createdBy.lastName}`.trim()
+    : '—';
+
+  const exchangeRate = booking?.serviceItems
+    ?.map((s) => s.details?.exchangeRate)
+    .find((v) => v && Number(v) > 0);
+
+  const paymentStatus = booking ? getPaymentStatus(booking) : 'Unpaid';
+  const postingStatus = booking ? getPostingStatus(booking) : 'Un-Posted';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-xl">
@@ -63,10 +75,16 @@ export function BookingViewModal({ bookingId, open, onClose }: BookingViewModalP
                 <ReadOnlyField label="Type" value={booking.bookingType || '—'} />
                 <ReadOnlyField label="Total Amount" value={formatCurrency(booking.totalAmount)} />
                 <ReadOnlyField label="Paid Amount" value={formatCurrency(booking.paidAmount)} />
+                <ReadOnlyField label="Payment Status" value={paymentStatus} />
+                <ReadOnlyField label="Posting Status" value={postingStatus} />
                 <ReadOnlyField label="Travel Date" value={booking.travelDate ? formatDate(booking.travelDate) : '—'} />
                 <ReadOnlyField label="Return Date" value={booking.returnDate ? formatDate(booking.returnDate) : '—'} />
                 <ReadOnlyField label="Passengers" value={`${booking.adults ?? booking.numTravelers}A / ${booking.children ?? 0}C / ${booking.infants ?? 0}I`} />
                 <ReadOnlyField label="Price Mode" value={booking.priceMode || '—'} />
+                <ReadOnlyField label="Currency" value={booking.currency || 'PKR'} />
+                <ReadOnlyField label="Exchange Rate" value={exchangeRate ? `${Number(exchangeRate).toFixed(3)} PKR/SAR` : '—'} />
+                <ReadOnlyField label="Package" value={booking.package?.name || '—'} />
+                <ReadOnlyField label="Created By" value={createdByName} />
                 <ReadOnlyField label="Created" value={formatDate(booking.createdAt)} />
               </div>
 
@@ -98,20 +116,50 @@ export function BookingViewModal({ bookingId, open, onClose }: BookingViewModalP
                             <th className="px-4 py-3">Cost</th>
                             <th className="px-4 py-3">Sale</th>
                             <th className="px-4 py-3">Vendor</th>
+                            <th className="px-4 py-3">Vendor Res#</th>
                           </tr>
                         </thead>
                         <tbody>
                           {booking.serviceItems.map((item) => (
                             <tr key={item.id || item.description} className="border-t border-slate-100">
                               <td className="px-4 py-3 font-medium">{item.serviceType}</td>
-                              <td className="px-4 py-3">{item.description}</td>
+                              <td className="px-4 py-3">
+                                <div>{item.description}</div>
+                                {item.details?.sector && (
+                                  <div className="text-xs text-slate-500">Sector: {item.details.sector}</div>
+                                )}
+                                {item.details?.airline && (
+                                  <div className="text-xs text-slate-500">Airline: {item.details.airline}</div>
+                                )}
+                              </td>
                               <td className="px-4 py-3">{formatCurrency(item.costAmount || 0)}</td>
                               <td className="px-4 py-3">{formatCurrency(item.amount || 0)}</td>
                               <td className="px-4 py-3">{formatVendorDisplay(item.vendor)}</td>
+                              <td className="px-4 py-3">{item.details?.vendorResNo || '—'}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
+                    </div>
+                  </CardBody>
+                </Card>
+              )}
+
+              {booking.vendorPostings && booking.vendorPostings.length > 0 && (
+                <Card>
+                  <CardBody className="p-0 sm:p-0">
+                    <div className="px-4 py-3 border-b border-slate-200">
+                      <h3 className="font-semibold text-slate-800">Vendor Postings</h3>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {booking.vendorPostings.map((p) => (
+                        <div key={p.id} className="px-4 py-3 text-sm">
+                          <div className="font-medium">{p.description}</div>
+                          <div className="text-slate-500">
+                            {p.serviceType} · {formatVendorDisplay(p.vendor)} · {formatCurrency(p.expectedCost)} · {p.status}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </CardBody>
                 </Card>

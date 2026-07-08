@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { Plus, Trash2, Pencil } from 'lucide-react';
+import { Plus, Trash2, Pencil, Send } from 'lucide-react';
 import api from '@/lib/api';
 import { searchB2BCustomers, searchPackages, searchVendors } from '@/lib/searchableOptions';
 import { buildQueryString } from '@/lib/query';
@@ -17,7 +17,8 @@ import {
   Invoice,
   ApiResponse,
 } from '@/types';
-import { canCreateResource, canEditResource, canDeleteResource, canModifyBooking, canDirectConfirmBooking } from '@/lib/permissions';
+import { canCreateResource, canEditResource, canDeleteResource, canModifyBooking, canDirectConfirmBooking, canEditBookingPricing, isSuperAdmin } from '@/lib/permissions';
+import { DECIMAL_INPUT_PROPS, formatDecimalValue } from '@/lib/decimalFormat';
 import { getPaymentStatus, getPostingStatus, paymentStatusColor, postingStatusColor } from '@/lib/bookingStatus';
 import { shareInvoiceViaWhatsApp } from '@/lib/whatsapp';
 import { useExchangeRate } from '@/contexts/ExchangeRateContext';
@@ -31,6 +32,7 @@ import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, T
 import { BookingViewModal } from '@/components/bookings/BookingViewModal';
 import { BookingPostingModal } from '@/components/bookings/BookingPostingModal';
 import { BookingPricingModal } from '@/components/bookings/BookingPricingModal';
+import { BookingRefundModal } from '@/components/bookings/BookingRefundModal';
 import { formatVendorDisplay } from '@/lib/vendorDisplay';
 
 type ServiceCurrency = 'PKR' | 'SAR';
@@ -157,10 +159,14 @@ const buildDescription = (item: BookingServiceItem): string => {
   }
 };
 
-/** Normalises free text into a fixed origin-destination sector code (e.g. LHE-MED). */
+/** Normalises sector codes — supports 2 or 3 cities (e.g. LHE-MED or LHE-DXB-MED). */
 const formatSector = (raw: string) => {
-  const cleaned = raw.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6);
-  return cleaned.length <= 3 ? cleaned : `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
+  const cleaned = raw.toUpperCase().replace(/[^A-Z]/g, '');
+  const chunks: string[] = [];
+  for (let i = 0; i < cleaned.length && chunks.length < 3; i += 3) {
+    chunks.push(cleaned.slice(i, i + 3));
+  }
+  return chunks.filter(Boolean).join('-');
 };
 
 export default function BookingsPage() {
@@ -182,6 +188,8 @@ export default function BookingsPage() {
   const [viewBookingId, setViewBookingId] = useState<string | null>(null);
   const [postingBooking, setPostingBooking] = useState<Booking | null>(null);
   const [pricingBooking, setPricingBooking] = useState<Booking | null>(null);
+  const [refundBooking, setRefundBooking] = useState<Booking | null>(null);
+  const [requestingId, setRequestingId] = useState<string | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
 
   // Manual PKR-per-SAR rate: the booking's own entry takes priority, else the system manual rate.
@@ -406,6 +414,10 @@ export default function BookingsPage() {
         }
       }
     }
+    if (form.travelDate && form.returnDate && new Date(form.returnDate) <= new Date(form.travelDate)) {
+      alert('Booking return date must be after the travel date.');
+      return;
+    }
     setSaving(true);
     const counts = countsOf(form);
     const rateValue = rateOf(form);
@@ -474,6 +486,19 @@ export default function BookingsPage() {
       alert((err as Error).message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRequestConfirmation = async (b: Booking) => {
+    if (!confirm(`Request confirmation for ${b.bookingNumber}?`)) return;
+    setRequestingId(b.id);
+    try {
+      await api.post(`/bookings/${b.id}/request-confirmation`, {});
+      loadData();
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setRequestingId(null);
     }
   };
 
@@ -556,12 +581,12 @@ export default function BookingsPage() {
                 ]} />
 
                 {/* Passenger counts — shared across both branches */}
-                <Input label="Adults" type="number" min={0} value={form.adults} onChange={(e) => updateForm({ adults: e.target.value })} />
-                <Input label="Children" type="number" min={0} value={form.children} onChange={(e) => updateForm({ children: e.target.value })} />
-                <Input label="Infants" type="number" min={0} value={form.infants} onChange={(e) => updateForm({ infants: e.target.value })} />
+                <Input label="Adults" type="number" min={0} step="1" value={form.adults} onChange={(e) => updateForm({ adults: e.target.value })} onBlur={(e) => updateForm({ adults: formatDecimalValue(e.target.value, 3) })} />
+                <Input label="Children" type="number" min={0} step="1" value={form.children} onChange={(e) => updateForm({ children: e.target.value })} onBlur={(e) => updateForm({ children: formatDecimalValue(e.target.value, 3) })} />
+                <Input label="Infants" type="number" min={0} step="1" value={form.infants} onChange={(e) => updateForm({ infants: e.target.value })} onBlur={(e) => updateForm({ infants: formatDecimalValue(e.target.value, 3) })} />
 
                 <Input label="Travel Date" type="date" value={form.travelDate} onChange={(e) => updateForm({ travelDate: e.target.value })} />
-                <Input label="Return Date" type="date" value={form.returnDate} onChange={(e) => updateForm({ returnDate: e.target.value })} />
+                <Input label="Return Date" type="date" value={form.returnDate} min={form.travelDate || undefined} onChange={(e) => updateForm({ returnDate: e.target.value })} />
               </div>
 
               {/* Pricing architecture */}
@@ -588,11 +613,12 @@ export default function BookingsPage() {
                   <Input
                     label="Exchange Rate (PKR per SAR)"
                     type="number"
-                    step="0.0001"
+                    step="0.001"
                     min={0}
                     value={form.exchangeRate}
                     onChange={(e) => updateForm({ exchangeRate: e.target.value })}
-                    placeholder={pkrPerSar.toFixed(4)}
+                    onBlur={(e) => updateForm({ exchangeRate: formatDecimalValue(e.target.value, 3) })}
+                    placeholder={formatDecimalValue(pkrPerSar, 3)}
                     hint="Manual rate used to convert any SAR service to PKR"
                   />
                 </div>
@@ -673,6 +699,7 @@ export default function BookingsPage() {
                                 <Input label={`Sale Price (${cur})`} type="number" value={String(item.amount || 0)} onChange={(e) => updateServiceItem(idx, { amount: parseFloat(e.target.value) || 0 })} />
                               )}
                               <SearchableSelect label="Vendor (posting)" value={item.vendorId || ''} onChange={(v) => updateServiceItem(idx, { vendorId: v })} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(item.vendorId)} options={[{ value: '', label: 'Select vendor' }]} />
+                              <Input label="Vendor Res#" value={item.details?.vendorResNo || ''} onChange={(e) => updateServiceDetails(idx, 'vendorResNo', e.target.value)} placeholder="Vendor reservation number" />
                             </>
                           )}
 
@@ -772,6 +799,7 @@ export default function BookingsPage() {
                       const paymentStatus = getPaymentStatus(b);
                       const postingStatus = getPostingStatus(b);
                       const canModify = canModifyBooking(user, b.status);
+                      const canEditPricing = canEditBookingPricing(user, b.status);
                       return (
                       <TableRow key={b.id}>
                         <TableCell className="font-semibold text-slate-900">
@@ -790,7 +818,7 @@ export default function BookingsPage() {
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
                             <span>{formatCurrency(b.totalAmount)}</span>
-                            {canEditResource(user, 'bookings') && canModify && (
+                            {canEditResource(user, 'bookings') && canEditPricing && (
                               <button
                                 type="button"
                                 onClick={() => setPricingBooking(b)}
@@ -807,7 +835,22 @@ export default function BookingsPage() {
                             {paymentStatus}
                           </span>
                         </TableCell>
-                        <TableCell><Badge status={b.status}>{b.status === 'REQUEST_CONFIRMATION' ? 'Request Confirmation' : b.status}</Badge></TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Badge status={b.status}>{b.status === 'REQUEST_CONFIRMATION' ? 'Request Confirmation' : b.status}</Badge>
+                            {canEditResource(user, 'bookings') && b.status === 'DRAFT' && (
+                              <button
+                                type="button"
+                                onClick={() => handleRequestConfirmation(b)}
+                                disabled={requestingId === b.id}
+                                className="p-1 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50 disabled:opacity-50"
+                                title="Request Confirmation"
+                              >
+                                <Send className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="hidden lg:table-cell">
                           <div className="flex items-center gap-2">
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ring-1 ring-inset ${postingStatusColor(postingStatus)}`}>
@@ -827,12 +870,19 @@ export default function BookingsPage() {
                         </TableCell>
                         <TableCell className="hidden lg:table-cell text-slate-500">{formatDate(b.createdAt)}</TableCell>
                         <TableCell align="right">
-                          <RowActions
-                            onEdit={() => startEdit(b)}
-                            onDelete={() => handleDelete(b)}
-                            canEdit={canEditResource(user, 'bookings') && canModify}
-                            canDelete={canDeleteResource(user, 'bookings') && canModify}
-                          />
+                          <div className="flex items-center justify-end gap-2">
+                            {isSuperAdmin(user) && (b.status === 'CONFIRMED' || b.status === 'COMPLETED') && (
+                              <Button type="button" variant="secondary" className="text-xs px-2 py-1" onClick={() => setRefundBooking(b)}>
+                                Refund
+                              </Button>
+                            )}
+                            <RowActions
+                              onEdit={() => startEdit(b)}
+                              onDelete={() => handleDelete(b)}
+                              canEdit={canEditResource(user, 'bookings') && canModify}
+                              canDelete={canDeleteResource(user, 'bookings') && canModify}
+                            />
+                          </div>
                         </TableCell>
                       </TableRow>
                       );
@@ -854,11 +904,18 @@ export default function BookingsPage() {
         booking={postingBooking}
         open={!!postingBooking}
         onClose={() => setPostingBooking(null)}
+        onSuccess={loadData}
       />
       <BookingPricingModal
         booking={pricingBooking}
         open={!!pricingBooking}
         onClose={() => setPricingBooking(null)}
+        onSuccess={loadData}
+      />
+      <BookingRefundModal
+        booking={refundBooking}
+        open={!!refundBooking}
+        onClose={() => setRefundBooking(null)}
         onSuccess={loadData}
       />
     </div>
@@ -890,7 +947,7 @@ function TicketFields({ item, currency, counts, priceMode, vendorLabel, onDetail
       ]} />
 
       {tripType !== 'MULTI_CITY' && (
-        <Input label="Sector" value={d.sector || ''} onChange={(e) => onDetail('sector', formatSector(e.target.value))} placeholder="LHE-MED" />
+        <Input label="Sector" value={d.sector || ''} onChange={(e) => onDetail('sector', formatSector(e.target.value))} placeholder="LHE-MED or LHE-DXB-MED" />
       )}
 
       {tripType === 'ONE_WAY' && (
@@ -910,11 +967,12 @@ function TicketFields({ item, currency, counts, priceMode, vendorLabel, onDetail
       )}
 
       <SearchableSelect label="Vendor (posting)" value={item.vendorId || ''} onChange={onVendor} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(item.vendorId)} options={[{ value: '', label: 'Select vendor' }]} />
+      <Input label="Vendor Res#" value={d.vendorResNo || ''} onChange={(e) => onDetail('vendorResNo', e.target.value)} placeholder="Vendor reservation number" />
 
       {/* Per-passenger cost & sale */}
       <div className="md:col-span-2 lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 border-t border-slate-200 pt-3">
         <div className="col-span-full text-xs font-semibold text-slate-500 uppercase">Per-Passenger Pricing ({currency})</div>
-        <Input label={`Cost / Adult (${currency})`} type="number" value={d.costAdult || '0'} onChange={(e) => onDetail('costAdult', e.target.value)} hint={`${counts.adults} adult(s)`} />
+        <Input label={`Cost / Adult (${currency})`} type="number" {...DECIMAL_INPUT_PROPS} value={d.costAdult || '0'} onChange={(e) => onDetail('costAdult', e.target.value)} onBlur={(e) => onDetail('costAdult', formatDecimalValue(e.target.value, 3))} hint={`${counts.adults} adult(s)`} />
         {breakdown && <Input label={`Sale / Adult (${currency})`} type="number" value={d.saleAdult || '0'} onChange={(e) => onDetail('saleAdult', e.target.value)} />}
         {counts.children > 0 && (
           <>
@@ -1023,6 +1081,7 @@ function ServiceRows({ item, currency, priceMode, vendorLabel, onAddRow, onRemov
                       <Input label={`Sale / Night (${currency})`} type="number" value={row.salePerNight || '0'} onChange={(e) => onUpdateRow(rowIdx, 'salePerNight', e.target.value)} hint={nights > 0 ? `Total: ${(toNum(row.salePerNight || '0') * nights * (toInt(row.numRooms || '1') || 1)).toLocaleString()} ${currency}` : undefined} />
                     )}
                     <SearchableSelect label="Vendor (posting)" value={row.vendorId || ''} onChange={(v) => onUpdateRow(rowIdx, 'vendorId', v)} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(row.vendorId)} options={[{ value: '', label: 'Select vendor' }]} />
+                    <Input label="Vendor Res#" value={row.vendorResNo || ''} onChange={(e) => onUpdateRow(rowIdx, 'vendorResNo', e.target.value)} placeholder="Vendor reservation number" />
                   </>
                 ) : (
                   <>
@@ -1034,6 +1093,7 @@ function ServiceRows({ item, currency, priceMode, vendorLabel, onAddRow, onRemov
                       <Input label={`Sale (${currency})`} type="number" value={row.sale || '0'} onChange={(e) => onUpdateRow(rowIdx, 'sale', e.target.value)} />
                     )}
                     <SearchableSelect label="Vendor (posting)" value={row.vendorId || ''} onChange={(v) => onUpdateRow(rowIdx, 'vendorId', v)} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(row.vendorId)} options={[{ value: '', label: 'Select vendor' }]} />
+                    <Input label="Vendor Res#" value={row.vendorResNo || ''} onChange={(e) => onUpdateRow(rowIdx, 'vendorResNo', e.target.value)} placeholder="Vendor reservation number" />
                   </>
                 )}
               </div>

@@ -67,6 +67,16 @@ export function canModifyBooking(user: User | null, bookingStatus: string): bool
   return bookingStatus !== 'CONFIRMED' && bookingStatus !== 'REQUEST_CONFIRMATION';
 }
 
+export function canEditBookingVendorCost(user: User | null, bookingStatus: string): boolean {
+  if (!user) return false;
+  if (isSuperAdmin(user) || getUserRole(user) === 'ADMIN') return true;
+  return bookingStatus === 'CONFIRMED';
+}
+
+export function canEditBookingPricing(user: User | null, bookingStatus: string): boolean {
+  return canModifyBooking(user, bookingStatus) || canEditBookingVendorCost(user, bookingStatus);
+}
+
 export function canDirectConfirmBooking(user: User | null): boolean {
   return isSuperAdmin(user);
 }

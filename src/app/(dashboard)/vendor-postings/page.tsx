@@ -158,7 +158,7 @@ export default function VendorPostingsPage() {
           <CardBody>
             <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <SearchableSelect label="Vendor" value={createForm.vendorId} onChange={(v) => setCreateForm({ ...createForm, vendorId: v })} onSearch={searchVendors} options={[{ value: '', label: 'Select vendor' }]} />
-              <Select label="Service" value={createForm.serviceType} onChange={(e) => setCreateForm({ ...createForm, serviceType: e.target.value })} options={[{ value: 'HOTEL', label: 'Hotel' }, { value: 'TICKET', label: 'Ticket' }, { value: 'VISA', label: 'Visa' }, { value: 'TRANSPORT', label: 'Transport' }]} />
+              <Select label="Service" value={createForm.serviceType} onChange={(e) => setCreateForm({ ...createForm, serviceType: e.target.value })} options={[{ value: 'HOTEL', label: 'Hotel' }, { value: 'TICKET', label: 'Ticket' }, { value: 'VISA', label: 'Visa' }, { value: 'TRANSPORT', label: 'Transport' }, { value: 'OTHER', label: 'Other' }]} />
               <Input label="Description" value={createForm.description} onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })} required />
               <Input label="Expected Cost" type="number" value={createForm.expectedCost} onChange={(e) => setCreateForm({ ...createForm, expectedCost: e.target.value })} required />
               <Select label="Currency" value={createForm.currency} onChange={(e) => setCreateForm({ ...createForm, currency: e.target.value })} options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]} />

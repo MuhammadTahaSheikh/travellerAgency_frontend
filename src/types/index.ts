@@ -50,7 +50,7 @@ export type ServiceRow = Record<string, string>;
 
 export interface BookingServiceItem {
   id?: string;
-  serviceType: 'PACKAGE' | 'TICKET' | 'VISA' | 'HOTEL' | 'TRANSPORT';
+  serviceType: 'PACKAGE' | 'TICKET' | 'VISA' | 'HOTEL' | 'TRANSPORT' | 'OTHER';
   description: string;
   amount: number;
   costAmount?: number;
@@ -103,6 +103,7 @@ export interface Booking {
   vendorPostings?: VendorPostingSummary[];
   paymentStatus?: 'Unpaid' | 'Paid' | 'Partially-Paid';
   postingStatus?: 'Posted' | 'Un-Posted' | 'Partially Posted';
+  createdBy?: { firstName: string; lastName: string; email?: string };
   createdAt: string;
 }
 
@@ -263,6 +264,7 @@ export interface Account {
   balance: number;
   balancePkr?: number;
   balanceSar?: number;
+  currency?: 'PKR' | 'SAR';
   isActive: boolean;
   customerId?: string | null;
   vendorId?: string | null;
