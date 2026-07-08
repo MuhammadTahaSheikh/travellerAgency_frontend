@@ -168,10 +168,10 @@ export default function CustomersPage() {
                 label="Customer Type"
                 value={form.customerType}
                 onChange={(e) => setForm({ ...form, customerType: e.target.value as 'B2C' | 'B2B' })}
-                disabled={!editingId}
-                options={editingId
-                  ? [{ value: 'B2C', label: 'B2C (Individual)' }, { value: 'B2B', label: 'B2B (Trade Partner)' }]
-                  : [{ value: 'B2B', label: 'B2B (Trade Partner)' }]}
+                options={[
+                  { value: 'B2C', label: 'B2C (Individual)' },
+                  { value: 'B2B', label: 'B2B (Trade Partner)' },
+                ]}
               />
               {form.customerType === 'B2B' ? (
                 <>
