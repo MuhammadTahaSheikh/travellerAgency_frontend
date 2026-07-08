@@ -7,7 +7,7 @@ import { Booking, ApiResponse, VendorPostingSummary } from '@/types';
 import { formatCurrency, LoadingSpinner, Badge } from '@/components/ui/Common';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
-import { DECIMAL_INPUT_PROPS } from '@/lib/decimalFormat';
+import { DecimalMoneyInput } from '@/components/ui/DecimalMoneyInput';
 
 type BookingRefundModalProps = {
   booking: Booking | null;
@@ -134,22 +134,18 @@ export function BookingRefundModal({ booking, open, onClose, onSuccess }: Bookin
                 options={[{ value: 'PKR', label: 'PKR' }, { value: 'SAR', label: 'SAR' }]}
               />
 
-              <Input
+              <DecimalMoneyInput
                 label="Amount to return to customer"
-                type="number"
-                {...DECIMAL_INPUT_PROPS}
                 value={customerAmount}
-                onChange={(e) => setCustomerAmount(e.target.value)}
+                onValueChange={setCustomerAmount}
                 required
               />
 
               {scope === 'service' && selectedPosting && vendorPosted && (
-                <Input
+                <DecimalMoneyInput
                   label="Amount vendor is returning"
-                  type="number"
-                  {...DECIMAL_INPUT_PROPS}
                   value={vendorAmount}
-                  onChange={(e) => setVendorAmount(e.target.value)}
+                  onValueChange={setVendorAmount}
                   required
                 />
               )}

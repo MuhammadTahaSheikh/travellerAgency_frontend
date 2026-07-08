@@ -18,7 +18,8 @@ import {
   ApiResponse,
 } from '@/types';
 import { canCreateResource, canEditResource, canDeleteResource, canModifyBooking, canDirectConfirmBooking, canEditBookingPricing, isSuperAdmin } from '@/lib/permissions';
-import { DECIMAL_INPUT_PROPS, formatDecimalValue } from '@/lib/decimalFormat';
+import { formatDecimalValue, moneyFieldValue } from '@/lib/decimalFormat';
+import { DecimalMoneyInput } from '@/components/ui/DecimalMoneyInput';
 import { getPaymentStatus, getPostingStatus, paymentStatusColor, postingStatusColor } from '@/lib/bookingStatus';
 import { shareInvoiceViaWhatsApp } from '@/lib/whatsapp';
 import { useExchangeRate } from '@/contexts/ExchangeRateContext';
@@ -44,9 +45,9 @@ const ROW_BASED_TYPES: BookingServiceItem['serviceType'][] = ['HOTEL', 'TRANSPOR
 const emptyHotelRow = (): ServiceRow => ({
   hotelName: '', city: '', roomType: '', mealPlan: '', view: '',
   checkInDate: '', checkOutDate: '', numRooms: '1',
-  costPerNight: '0', salePerNight: '0', vendorId: '',
+  costPerNight: '', salePerNight: '', vendorId: '',
 });
-const emptyTransportRow = (): ServiceRow => ({ sector: '', date: '', vehicleType: '', cost: '0', sale: '0', vendorId: '' });
+const emptyTransportRow = (): ServiceRow => ({ sector: '', date: '', vehicleType: '', cost: '', sale: '', vendorId: '' });
 const emptyTicketSector = (): ServiceRow => ({ sector: '', date: '', baggage: '' });
 
 const defaultRowFor = (type: BookingServiceItem['serviceType']): ServiceRow =>
@@ -73,9 +74,9 @@ const emptyForm = {
   adults: '1',
   children: '0',
   infants: '0',
-  priceAdult: '0',
-  priceChild: '0',
-  priceInfant: '0',
+  priceAdult: '',
+  priceChild: '',
+  priceInfant: '',
   travelDate: '',
   returnDate: '',
   notes: '',
@@ -116,8 +117,10 @@ const serviceCostNative = (item: BookingServiceItem, c: Counts): number => {
       return c.adults * toNum(item.details?.costAdult || '0') +
         c.children * toNum(item.details?.costChild || '0') +
         c.infants * toNum(item.details?.costInfant || '0');
+    case 'VISA':
+      return toNum(item.details?.costPrice ?? String(item.costAmount ?? 0));
     default:
-      return toNum(String(item.costAmount ?? 0));
+      return toNum(item.details?.costPrice ?? String(item.costAmount ?? 0));
   }
 };
 
@@ -130,8 +133,10 @@ const serviceSaleNative = (item: BookingServiceItem, c: Counts): number => {
       return c.adults * toNum(item.details?.saleAdult || '0') +
         c.children * toNum(item.details?.saleChild || '0') +
         c.infants * toNum(item.details?.saleInfant || '0');
+    case 'VISA':
+      return toNum(item.details?.salePrice ?? String(item.amount ?? 0));
     default:
-      return toNum(String(item.amount ?? 0));
+      return toNum(item.details?.salePrice ?? String(item.amount ?? 0));
   }
 };
 
@@ -361,9 +366,9 @@ export default function BookingsPage() {
       adults: String(b.adults ?? b.numTravelers ?? 1),
       children: String(b.children ?? 0),
       infants: String(b.infants ?? 0),
-      priceAdult: String(b.priceAdult ?? 0),
-      priceChild: String(b.priceChild ?? 0),
-      priceInfant: String(b.priceInfant ?? 0),
+      priceAdult: b.priceAdult ? formatDecimalValue(b.priceAdult, 3) : '',
+      priceChild: b.priceChild ? formatDecimalValue(b.priceChild, 3) : '',
+      priceInfant: b.priceInfant ? formatDecimalValue(b.priceInfant, 3) : '',
       travelDate: b.travelDate ? b.travelDate.split('T')[0] : '',
       returnDate: b.returnDate ? b.returnDate.split('T')[0] : '',
       notes: b.notes || '',
@@ -382,7 +387,13 @@ export default function BookingsPage() {
           amount: nativeSale,
           costAmount: nativeCost,
           vendorId: s.vendorId,
-          details: (restDetails as Record<string, string>) || {},
+          details: {
+            ...((restDetails as Record<string, string>) || {}),
+            ...(s.serviceType === 'VISA' ? {
+              costPrice: (restDetails as Record<string, string>).costPrice ?? (nativeCost ? formatDecimalValue(nativeCost, 3) : ''),
+              salePrice: (restDetails as Record<string, string>).salePrice ?? (nativeSale ? formatDecimalValue(nativeSale, 3) : ''),
+            } : {}),
+          },
           rows: ((persistedRows as ServiceRow[]) || (s.rows as ServiceRow[]) || []).map((r) => ({
             ...r,
             vendorId: r.vendorId || s.vendorId || '',
@@ -581,9 +592,9 @@ export default function BookingsPage() {
                 ]} />
 
                 {/* Passenger counts — shared across both branches */}
-                <Input label="Adults" type="number" min={0} step="1" value={form.adults} onChange={(e) => updateForm({ adults: e.target.value })} onBlur={(e) => updateForm({ adults: formatDecimalValue(e.target.value, 3) })} />
-                <Input label="Children" type="number" min={0} step="1" value={form.children} onChange={(e) => updateForm({ children: e.target.value })} onBlur={(e) => updateForm({ children: formatDecimalValue(e.target.value, 3) })} />
-                <Input label="Infants" type="number" min={0} step="1" value={form.infants} onChange={(e) => updateForm({ infants: e.target.value })} onBlur={(e) => updateForm({ infants: formatDecimalValue(e.target.value, 3) })} />
+                <Input label="Adults" type="number" min={0} step="1" value={form.adults} onChange={(e) => updateForm({ adults: e.target.value })} onBlur={(e) => updateForm({ adults: String(Math.max(0, parseInt(e.target.value, 10) || 0)) })} />
+                <Input label="Children" type="number" min={0} step="1" value={form.children} onChange={(e) => updateForm({ children: e.target.value })} onBlur={(e) => updateForm({ children: String(Math.max(0, parseInt(e.target.value, 10) || 0)) })} />
+                <Input label="Infants" type="number" min={0} step="1" value={form.infants} onChange={(e) => updateForm({ infants: e.target.value })} onBlur={(e) => updateForm({ infants: String(Math.max(0, parseInt(e.target.value, 10) || 0)) })} />
 
                 <Input label="Travel Date" type="date" value={form.travelDate} onChange={(e) => updateForm({ travelDate: e.target.value })} />
                 <Input label="Return Date" type="date" value={form.returnDate} min={form.travelDate || undefined} onChange={(e) => updateForm({ returnDate: e.target.value })} />
@@ -610,14 +621,10 @@ export default function BookingsPage() {
                 </div>
 
                 <div className="mb-4 sm:w-72">
-                  <Input
+                  <DecimalMoneyInput
                     label="Exchange Rate (PKR per SAR)"
-                    type="number"
-                    step="0.001"
-                    min={0}
                     value={form.exchangeRate}
-                    onChange={(e) => updateForm({ exchangeRate: e.target.value })}
-                    onBlur={(e) => updateForm({ exchangeRate: formatDecimalValue(e.target.value, 3) })}
+                    onValueChange={(v) => updateForm({ exchangeRate: v })}
                     placeholder={formatDecimalValue(pkrPerSar, 3)}
                     hint="Manual rate used to convert any SAR service to PKR"
                   />
@@ -625,9 +632,9 @@ export default function BookingsPage() {
 
                 {form.priceMode === 'DETERMINED' ? (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Input label="Price per Adult" type="number" value={form.priceAdult} onChange={(e) => updateForm({ priceAdult: e.target.value })} hint={`${form.adults || 0} adult(s)`} />
-                    <Input label="Price per Child" type="number" value={form.priceChild} onChange={(e) => updateForm({ priceChild: e.target.value })} hint={`${form.children || 0} child(ren)`} />
-                    <Input label="Price per Infant" type="number" value={form.priceInfant} onChange={(e) => updateForm({ priceInfant: e.target.value })} hint={`${form.infants || 0} infant(s)`} />
+                    <DecimalMoneyInput label="Price per Adult" value={form.priceAdult} onValueChange={(v) => updateForm({ priceAdult: v })} hint={`${form.adults || 0} adult(s)`} />
+                    <DecimalMoneyInput label="Price per Child" value={form.priceChild} onValueChange={(v) => updateForm({ priceChild: v })} hint={`${form.children || 0} child(ren)`} />
+                    <DecimalMoneyInput label="Price per Infant" value={form.priceInfant} onValueChange={(v) => updateForm({ priceInfant: v })} hint={`${form.infants || 0} infant(s)`} />
                   </div>
                 ) : (
                   <p className="text-sm text-slate-500">Pricing is captured per service block below. Each service has its own currency (PKR/SAR); the total is converted to PKR at {rateOf(form).toFixed(2)} PKR/SAR.</p>
@@ -694,9 +701,17 @@ export default function BookingsPage() {
                           {/* Visa keeps item-level cost/sale/vendor */}
                           {showItemPricing && (
                             <>
-                              <Input label={`Cost Price (${cur})`} type="number" value={String(item.costAmount || 0)} onChange={(e) => updateServiceItem(idx, { costAmount: parseFloat(e.target.value) || 0 })} />
+                              <DecimalMoneyInput
+                                label={`Cost Price (${cur})`}
+                                value={item.details?.costPrice ?? moneyFieldValue(item.costAmount)}
+                                onValueChange={(v) => updateServiceDetails(idx, 'costPrice', v)}
+                              />
                               {form.priceMode === 'BREAKDOWN' && (
-                                <Input label={`Sale Price (${cur})`} type="number" value={String(item.amount || 0)} onChange={(e) => updateServiceItem(idx, { amount: parseFloat(e.target.value) || 0 })} />
+                                <DecimalMoneyInput
+                                  label={`Sale Price (${cur})`}
+                                  value={item.details?.salePrice ?? moneyFieldValue(item.amount)}
+                                  onValueChange={(v) => updateServiceDetails(idx, 'salePrice', v)}
+                                />
                               )}
                               <SearchableSelect label="Vendor (posting)" value={item.vendorId || ''} onChange={(v) => updateServiceItem(idx, { vendorId: v })} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(item.vendorId)} options={[{ value: '', label: 'Select vendor' }]} />
                               <Input label="Vendor Res#" value={item.details?.vendorResNo || ''} onChange={(e) => updateServiceDetails(idx, 'vendorResNo', e.target.value)} placeholder="Vendor reservation number" />
@@ -972,18 +987,18 @@ function TicketFields({ item, currency, counts, priceMode, vendorLabel, onDetail
       {/* Per-passenger cost & sale */}
       <div className="md:col-span-2 lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 border-t border-slate-200 pt-3">
         <div className="col-span-full text-xs font-semibold text-slate-500 uppercase">Per-Passenger Pricing ({currency})</div>
-        <Input label={`Cost / Adult (${currency})`} type="number" {...DECIMAL_INPUT_PROPS} value={d.costAdult || '0'} onChange={(e) => onDetail('costAdult', e.target.value)} onBlur={(e) => onDetail('costAdult', formatDecimalValue(e.target.value, 3))} hint={`${counts.adults} adult(s)`} />
-        {breakdown && <Input label={`Sale / Adult (${currency})`} type="number" value={d.saleAdult || '0'} onChange={(e) => onDetail('saleAdult', e.target.value)} />}
+        <DecimalMoneyInput label={`Cost / Adult (${currency})`} value={d.costAdult} onValueChange={(v) => onDetail('costAdult', v)} hint={`${counts.adults} adult(s)`} />
+        {breakdown && <DecimalMoneyInput label={`Sale / Adult (${currency})`} value={d.saleAdult} onValueChange={(v) => onDetail('saleAdult', v)} />}
         {counts.children > 0 && (
           <>
-            <Input label={`Cost / Child (${currency})`} type="number" value={d.costChild || '0'} onChange={(e) => onDetail('costChild', e.target.value)} hint={`${counts.children} child(ren)`} />
-            {breakdown && <Input label={`Sale / Child (${currency})`} type="number" value={d.saleChild || '0'} onChange={(e) => onDetail('saleChild', e.target.value)} />}
+            <DecimalMoneyInput label={`Cost / Child (${currency})`} value={d.costChild} onValueChange={(v) => onDetail('costChild', v)} hint={`${counts.children} child(ren)`} />
+            {breakdown && <DecimalMoneyInput label={`Sale / Child (${currency})`} value={d.saleChild} onValueChange={(v) => onDetail('saleChild', v)} />}
           </>
         )}
         {counts.infants > 0 && (
           <>
-            <Input label={`Cost / Infant (${currency})`} type="number" value={d.costInfant || '0'} onChange={(e) => onDetail('costInfant', e.target.value)} hint={`${counts.infants} infant(s)`} />
-            {breakdown && <Input label={`Sale / Infant (${currency})`} type="number" value={d.saleInfant || '0'} onChange={(e) => onDetail('saleInfant', e.target.value)} />}
+            <DecimalMoneyInput label={`Cost / Infant (${currency})`} value={d.costInfant} onValueChange={(v) => onDetail('costInfant', v)} hint={`${counts.infants} infant(s)`} />
+            {breakdown && <DecimalMoneyInput label={`Sale / Infant (${currency})`} value={d.saleInfant} onValueChange={(v) => onDetail('saleInfant', v)} />}
           </>
         )}
       </div>
@@ -1076,9 +1091,9 @@ function ServiceRows({ item, currency, priceMode, vendorLabel, onAddRow, onRemov
                     <Input label="Rooms" type="number" min={1} value={row.numRooms || '1'} onChange={(e) => onUpdateRow(rowIdx, 'numRooms', e.target.value)} />
                     <Input label="Check-in Date" type="date" value={row.checkInDate || ''} onChange={(e) => onUpdateRow(rowIdx, 'checkInDate', e.target.value)} />
                     <Input label="Check-out Date" type="date" value={row.checkOutDate || ''} min={row.checkInDate || undefined} onChange={(e) => onUpdateRow(rowIdx, 'checkOutDate', e.target.value)} />
-                    <Input label={`Cost / Night (${currency})`} type="number" value={row.costPerNight || '0'} onChange={(e) => onUpdateRow(rowIdx, 'costPerNight', e.target.value)} hint={nights > 0 ? `Total: ${(toNum(row.costPerNight || '0') * nights * (toInt(row.numRooms || '1') || 1)).toLocaleString()} ${currency}` : undefined} />
+                    <DecimalMoneyInput label={`Cost / Night (${currency})`} value={row.costPerNight} onValueChange={(v) => onUpdateRow(rowIdx, 'costPerNight', v)} hint={nights > 0 ? `Total: ${(toNum(row.costPerNight || '0') * nights * (toInt(row.numRooms || '1') || 1)).toLocaleString()} ${currency}` : undefined} />
                     {breakdown && (
-                      <Input label={`Sale / Night (${currency})`} type="number" value={row.salePerNight || '0'} onChange={(e) => onUpdateRow(rowIdx, 'salePerNight', e.target.value)} hint={nights > 0 ? `Total: ${(toNum(row.salePerNight || '0') * nights * (toInt(row.numRooms || '1') || 1)).toLocaleString()} ${currency}` : undefined} />
+                      <DecimalMoneyInput label={`Sale / Night (${currency})`} value={row.salePerNight} onValueChange={(v) => onUpdateRow(rowIdx, 'salePerNight', v)} hint={nights > 0 ? `Total: ${(toNum(row.salePerNight || '0') * nights * (toInt(row.numRooms || '1') || 1)).toLocaleString()} ${currency}` : undefined} />
                     )}
                     <SearchableSelect label="Vendor (posting)" value={row.vendorId || ''} onChange={(v) => onUpdateRow(rowIdx, 'vendorId', v)} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(row.vendorId)} options={[{ value: '', label: 'Select vendor' }]} />
                     <Input label="Vendor Res#" value={row.vendorResNo || ''} onChange={(e) => onUpdateRow(rowIdx, 'vendorResNo', e.target.value)} placeholder="Vendor reservation number" />
@@ -1088,9 +1103,9 @@ function ServiceRows({ item, currency, priceMode, vendorLabel, onAddRow, onRemov
                     <Input label="Sector" value={row.sector || ''} onChange={(e) => onUpdateRow(rowIdx, 'sector', e.target.value)} placeholder="e.g. Jeddah - Makkah" />
                     <Input label="Date" type="date" value={row.date || ''} onChange={(e) => onUpdateRow(rowIdx, 'date', e.target.value)} />
                     <Input label="Vehicle Type" value={row.vehicleType || ''} onChange={(e) => onUpdateRow(rowIdx, 'vehicleType', e.target.value)} />
-                    <Input label={`Cost (${currency})`} type="number" value={row.cost || '0'} onChange={(e) => onUpdateRow(rowIdx, 'cost', e.target.value)} />
+                    <DecimalMoneyInput label={`Cost (${currency})`} value={row.cost} onValueChange={(v) => onUpdateRow(rowIdx, 'cost', v)} />
                     {breakdown && (
-                      <Input label={`Sale (${currency})`} type="number" value={row.sale || '0'} onChange={(e) => onUpdateRow(rowIdx, 'sale', e.target.value)} />
+                      <DecimalMoneyInput label={`Sale (${currency})`} value={row.sale} onValueChange={(v) => onUpdateRow(rowIdx, 'sale', v)} />
                     )}
                     <SearchableSelect label="Vendor (posting)" value={row.vendorId || ''} onChange={(v) => onUpdateRow(rowIdx, 'vendorId', v)} onSearch={(q) => searchVendors(q)} selectedLabel={vendorLabel(row.vendorId)} options={[{ value: '', label: 'Select vendor' }]} />
                     <Input label="Vendor Res#" value={row.vendorResNo || ''} onChange={(e) => onUpdateRow(rowIdx, 'vendorResNo', e.target.value)} placeholder="Vendor reservation number" />

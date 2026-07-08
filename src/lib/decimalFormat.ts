@@ -15,5 +15,13 @@ export function parseDecimalInput(value: string): string {
 
 export const DECIMAL_INPUT_PROPS = {
   step: '0.001' as const,
-  min: 0,
 };
+
+/** Display stored money — empty string when unset/zero for editing UX. */
+export function moneyFieldValue(value: string | number | undefined | null, showZero = false): string {
+  if (value === undefined || value === null || value === '') return '';
+  const n = parseFloat(String(value));
+  if (Number.isNaN(n)) return String(value);
+  if (!showZero && n === 0) return '';
+  return String(value);
+}

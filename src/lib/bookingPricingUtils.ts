@@ -34,8 +34,10 @@ export const serviceCostNative = (item: BookingServiceItem, counts: PassengerCou
       return counts.adults * toNum(item.details?.costAdult || '0') +
         counts.children * toNum(item.details?.costChild || '0') +
         counts.infants * toNum(item.details?.costInfant || '0');
+    case 'VISA':
+      return toNum(item.details?.costPrice ?? String(item.costAmount ?? 0));
     default:
-      return toNum(String(item.costAmount ?? 0));
+      return toNum(item.details?.costPrice ?? String(item.costAmount ?? 0));
   }
 };
 
@@ -48,8 +50,10 @@ export const serviceSaleNative = (item: BookingServiceItem, counts: PassengerCou
       return counts.adults * toNum(item.details?.saleAdult || '0') +
         counts.children * toNum(item.details?.saleChild || '0') +
         counts.infants * toNum(item.details?.saleInfant || '0');
+    case 'VISA':
+      return toNum(item.details?.salePrice ?? String(item.amount ?? 0));
     default:
-      return toNum(String(item.amount ?? 0));
+      return toNum(item.details?.salePrice ?? String(item.amount ?? 0));
   }
 };
 

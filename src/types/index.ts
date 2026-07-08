@@ -112,6 +112,7 @@ export interface VendorPostingSummary {
   description: string;
   expectedCost: number;
   actualCost?: number | null;
+  currency?: 'PKR' | 'SAR';
   status: 'UNASSIGNED' | 'PENDING' | 'POSTED' | 'CANCELLED';
   serviceType: string;
   vendor?: { id: string; name: string; vendorCode?: string };

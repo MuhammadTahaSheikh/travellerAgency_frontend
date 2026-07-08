@@ -354,6 +354,7 @@ export default function LedgerPage() {
     totalCredit: number;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'accounts' | 'journal' | 'ledger' | 'trial' | 'users'>('accounts');
   const [accountGroup, setAccountGroup] = useState<AccountGroupKey>('all');
   const [selectedAccountId, setSelectedAccountId] = useState('');
@@ -385,33 +386,53 @@ export default function LedgerPage() {
   const [editAccountForm, setEditAccountForm] = useState({ name: '', description: '', employeeId: '' });
   const [users, setUsers] = useState<{ id: string; firstName: string; lastName: string }[]>([]);
 
+  const loadUserPerformance = (dates = appliedDates) => {
+    api
+      .get<ApiResponse<typeof userPerformance> & { totals: typeof userPerformanceTotals }>(
+        `/ledger/user-performance${buildQueryString({ startDate: dates.startDate, endDate: dates.endDate })}`
+      )
+      .then((upRes) => {
+        setUserPerformance(upRes.data || []);
+        setUserPerformanceTotals(upRes.totals || null);
+      })
+      .catch((err) => {
+        console.warn('User performance unavailable:', err);
+        setUserPerformance([]);
+        setUserPerformanceTotals(null);
+      });
+  };
+
   const loadData = (dates = appliedDates, accountId = selectedAccountId, cur = currency) => {
     setLoading(true);
+    setLoadError(null);
     const query = buildQueryString({
       startDate: dates.startDate,
       endDate: dates.endDate,
       accountId: accountId || undefined,
       currency: cur,
     });
-    Promise.all([
+    Promise.allSettled([
       api.get<ApiResponse<Account[]> & { grouped: Record<string, LedgerAccountGroup> }>('/ledger/accounts'),
       api.get<ApiResponse<JournalEntry[]>>(`/ledger/journal-entries${query}`),
       api.get<ApiResponse<LedgerTransactionRow[]> & { currency: string }>(`/ledger/general-ledger${query}`),
       api.get<ApiResponse<typeof trialBalance>>(`/ledger/trial-balance?currency=${cur}`),
-      api.get<ApiResponse<typeof userPerformance> & { totals: typeof userPerformanceTotals }>(`/ledger/user-performance${buildQueryString({ startDate: dates.startDate, endDate: dates.endDate })}`),
       isSuperAdmin(user) ? api.get<ApiResponse<{ id: string; firstName: string; lastName: string }[]>>('/users?limit=100') : Promise.resolve({ data: [] }),
     ])
-      .then(([accRes, jeRes, glRes, tbRes, upRes, usersRes]) => {
-        setAccounts(accRes.data || []);
-        setGrouped(accRes.grouped || null);
-        setJournalEntries(jeRes.data || []);
-        setLedgerTransactions(glRes.data || []);
-        setTrialBalance(tbRes.data || null);
-        setUserPerformance(upRes.data || []);
-        setUserPerformanceTotals(upRes.totals || null);
-        if (usersRes?.data) setUsers(usersRes.data);
+      .then(([accRes, jeRes, glRes, tbRes, usersRes]) => {
+        if (accRes.status === 'fulfilled') {
+          setAccounts(accRes.value.data || []);
+          setGrouped(accRes.value.grouped || null);
+        } else {
+          console.error('Ledger accounts failed:', accRes.reason);
+          setAccounts([]);
+          setGrouped(null);
+          setLoadError((accRes.reason as Error)?.message || 'Failed to load ledger accounts.');
+        }
+        if (jeRes.status === 'fulfilled') setJournalEntries(jeRes.value.data || []);
+        if (glRes.status === 'fulfilled') setLedgerTransactions(glRes.value.data || []);
+        if (tbRes.status === 'fulfilled') setTrialBalance(tbRes.value.data || null);
+        if (usersRes.status === 'fulfilled' && usersRes.value?.data) setUsers(usersRes.value.data);
       })
-      .catch(console.error)
       .finally(() => setLoading(false));
   };
 
@@ -429,6 +450,10 @@ export default function LedgerPage() {
   };
 
   useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    if (activeTab === 'users') loadUserPerformance();
+  }, [activeTab, appliedDates.startDate, appliedDates.endDate]);
 
   const handleExportLedger = async (format: 'csv' | 'html') => {
     const isAllAccountsView = !selectedAccountId;
@@ -758,10 +783,18 @@ export default function LedgerPage() {
         </div>
       )}
 
+      {loadError && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <p className="font-semibold">Could not load ledger accounts</p>
+          <p className="mt-1">{loadError}</p>
+          <Button type="button" variant="secondary" className="mt-3" onClick={() => loadData()}>Retry</Button>
+        </div>
+      )}
+
       {loading ? <LoadingSpinner /> : (
         <>
           {activeTab === 'accounts' && (
-            accounts.length === 0 ? (
+            accounts.length === 0 && !loadError ? (
               <EmptyState message="No ledger accounts configured yet." />
             ) : accountGroup === 'all' && grouped ? (
               <div>

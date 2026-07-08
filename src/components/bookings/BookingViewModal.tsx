@@ -7,6 +7,7 @@ import { Booking, ApiResponse } from '@/types';
 import { formatCurrency, formatDate, Badge, LoadingSpinner } from '@/components/ui/Common';
 import { formatVendorDisplay } from '@/lib/vendorDisplay';
 import { getPaymentStatus, getPostingStatus } from '@/lib/bookingStatus';
+import { formatServiceDetailLines } from '@/lib/bookingServiceDetails';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody } from '@/components/ui/Card';
 
@@ -120,16 +121,19 @@ export function BookingViewModal({ bookingId, open, onClose }: BookingViewModalP
                           </tr>
                         </thead>
                         <tbody>
-                          {booking.serviceItems.map((item) => (
+                          {booking.serviceItems.map((item) => {
+                            const detailLines = formatServiceDetailLines(item);
+                            return (
                             <tr key={item.id || item.description} className="border-t border-slate-100">
                               <td className="px-4 py-3 font-medium">{item.serviceType}</td>
                               <td className="px-4 py-3">
                                 <div>{item.description}</div>
-                                {item.details?.sector && (
-                                  <div className="text-xs text-slate-500">Sector: {item.details.sector}</div>
-                                )}
-                                {item.details?.airline && (
-                                  <div className="text-xs text-slate-500">Airline: {item.details.airline}</div>
+                                {detailLines.length > 0 && (
+                                  <div className="mt-1 space-y-0.5">
+                                    {detailLines.map((line) => (
+                                      <div key={line} className="text-xs text-slate-500">{line}</div>
+                                    ))}
+                                  </div>
                                 )}
                               </td>
                               <td className="px-4 py-3">{formatCurrency(item.costAmount || 0)}</td>
@@ -137,7 +141,8 @@ export function BookingViewModal({ bookingId, open, onClose }: BookingViewModalP
                               <td className="px-4 py-3">{formatVendorDisplay(item.vendor)}</td>
                               <td className="px-4 py-3">{item.details?.vendorResNo || '—'}</td>
                             </tr>
-                          ))}
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -152,14 +157,17 @@ export function BookingViewModal({ bookingId, open, onClose }: BookingViewModalP
                       <h3 className="font-semibold text-slate-800">Vendor Postings</h3>
                     </div>
                     <div className="divide-y divide-slate-100">
-                      {booking.vendorPostings.map((p) => (
+                      {booking.vendorPostings.map((p) => {
+                        const postingCurrency = (p.currency === 'SAR' ? 'SAR' : 'PKR') as 'PKR' | 'SAR';
+                        return (
                         <div key={p.id} className="px-4 py-3 text-sm">
                           <div className="font-medium">{p.description}</div>
                           <div className="text-slate-500">
-                            {p.serviceType} · {formatVendorDisplay(p.vendor)} · {formatCurrency(p.expectedCost)} · {p.status}
+                            {p.serviceType} · {formatVendorDisplay(p.vendor)} · {formatCurrency(p.expectedCost, postingCurrency)} · {p.status}
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </CardBody>
                 </Card>
