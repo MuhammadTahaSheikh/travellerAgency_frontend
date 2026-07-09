@@ -25,12 +25,22 @@ export function getPostingStatus(booking: Booking): PostingStatusLabel {
   return 'Partially Posted';
 }
 
+export function formatBookingStatusLabel(status: string): string {
+  if (status === 'REQUEST_CONFIRMATION') return 'Request Confirmation';
+  if (status === 'PARTIALLY_REFUNDED') return 'Partially Refunded';
+  if (status === 'REFUNDED') return 'Refunded';
+  return status;
+}
+
 export function canModifyBooking(user: User | null, booking: Booking): boolean {
   if (!user) return false;
   if (isSuperAdmin(user)) return true;
   const role = getUserRole(user);
   if (role === 'ADMIN') return true;
-  return booking.status !== 'CONFIRMED' && booking.status !== 'REQUEST_CONFIRMATION';
+  return booking.status !== 'CONFIRMED'
+    && booking.status !== 'REQUEST_CONFIRMATION'
+    && booking.status !== 'PARTIALLY_REFUNDED'
+    && booking.status !== 'REFUNDED';
 }
 
 export function canDirectPost(user: User | null): boolean {

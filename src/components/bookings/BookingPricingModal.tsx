@@ -18,6 +18,13 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { DecimalMoneyInput } from '@/components/ui/DecimalMoneyInput';
 import { formatDecimalValue, moneyFieldValue } from '@/lib/decimalFormat';
+import {
+  getHotelRowReadOnlyFields,
+  getTicketReadOnlyFields,
+  getTransportRowReadOnlyFields,
+  getVisaReadOnlyFields,
+  ReadOnlyDetailField,
+} from '@/lib/pricingReadOnlyDetails';
 import { RootState } from '@/store';
 import { canModifyBooking } from '@/lib/permissions';
 
@@ -30,6 +37,19 @@ type BookingPricingModalProps = {
 
 const toNum = (v: string | number | undefined) => parseFloat(String(v ?? 0)) || 0;
 const ROW_BASED_TYPES: BookingServiceItem['serviceType'][] = ['HOTEL', 'TRANSPORT'];
+
+function ReadOnlyDetailsGrid({ fields }: { fields: ReadOnlyDetailField[] }) {
+  return (
+    <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 rounded-lg border border-slate-100 bg-slate-50/80 p-3">
+      {fields.map((field) => (
+        <div key={field.label}>
+          <p className="text-xs text-slate-500">{field.label}</p>
+          <p className="text-sm font-medium text-slate-800">{field.value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function BookingPricingModal({ booking, open, onClose, onSuccess }: BookingPricingModalProps) {
   const user = useSelector((state: RootState) => state.auth.user);
@@ -156,36 +176,47 @@ export function BookingPricingModal({ booking, open, onClose, onSuccess }: Booki
             <p className="text-sm font-semibold text-teal-700 mb-3">{item.serviceType} — {item.description}</p>
 
             {item.serviceType === 'VISA' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <DecimalMoneyInput label="Cost" value={item.details?.costPrice ?? moneyFieldValue(item.costAmount)} onValueChange={(v) => updateServiceDetails(idx, 'costPrice', v)} />
-                {!costOnly && (
-                  <DecimalMoneyInput label="Sale" value={item.details?.salePrice ?? moneyFieldValue(item.amount)} onValueChange={(v) => updateServiceDetails(idx, 'salePrice', v)} />
-                )}
-              </div>
+              <>
+                <ReadOnlyDetailsGrid fields={getVisaReadOnlyFields(item)} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <DecimalMoneyInput label="Cost" value={item.details?.costPrice ?? moneyFieldValue(item.costAmount)} onValueChange={(v) => updateServiceDetails(idx, 'costPrice', v)} />
+                  {!costOnly && (
+                    <DecimalMoneyInput label="Sale" value={item.details?.salePrice ?? moneyFieldValue(item.amount)} onValueChange={(v) => updateServiceDetails(idx, 'salePrice', v)} />
+                  )}
+                </div>
+              </>
             )}
 
             {item.serviceType === 'TICKET' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                <DecimalMoneyInput label="Cost / Adult" value={item.details?.costAdult} onValueChange={(v) => updateServiceDetails(idx, 'costAdult', v)} hint={`${counts.adults} adult(s)`} />
-                {!costOnly && <DecimalMoneyInput label="Sale / Adult" value={item.details?.saleAdult} onValueChange={(v) => updateServiceDetails(idx, 'saleAdult', v)} />}
-                {counts.children > 0 && (
-                  <>
-                    <DecimalMoneyInput label="Cost / Child" value={item.details?.costChild} onValueChange={(v) => updateServiceDetails(idx, 'costChild', v)} hint={`${counts.children} child(ren)`} />
-                    {!costOnly && <DecimalMoneyInput label="Sale / Child" value={item.details?.saleChild} onValueChange={(v) => updateServiceDetails(idx, 'saleChild', v)} />}
-                  </>
-                )}
-                {counts.infants > 0 && (
-                  <>
-                    <DecimalMoneyInput label="Cost / Infant" value={item.details?.costInfant} onValueChange={(v) => updateServiceDetails(idx, 'costInfant', v)} hint={`${counts.infants} infant(s)`} />
-                    {!costOnly && <DecimalMoneyInput label="Sale / Infant" value={item.details?.saleInfant} onValueChange={(v) => updateServiceDetails(idx, 'saleInfant', v)} />}
-                  </>
-                )}
-              </div>
+              <>
+                <ReadOnlyDetailsGrid fields={getTicketReadOnlyFields(item)} />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <DecimalMoneyInput label="Cost / Adult" value={item.details?.costAdult} onValueChange={(v) => updateServiceDetails(idx, 'costAdult', v)} hint={`${counts.adults} adult(s)`} />
+                  {!costOnly && <DecimalMoneyInput label="Sale / Adult" value={item.details?.saleAdult} onValueChange={(v) => updateServiceDetails(idx, 'saleAdult', v)} />}
+                  {counts.children > 0 && (
+                    <>
+                      <DecimalMoneyInput label="Cost / Child" value={item.details?.costChild} onValueChange={(v) => updateServiceDetails(idx, 'costChild', v)} hint={`${counts.children} child(ren)`} />
+                      {!costOnly && <DecimalMoneyInput label="Sale / Child" value={item.details?.saleChild} onValueChange={(v) => updateServiceDetails(idx, 'saleChild', v)} />}
+                    </>
+                  )}
+                  {counts.infants > 0 && (
+                    <>
+                      <DecimalMoneyInput label="Cost / Infant" value={item.details?.costInfant} onValueChange={(v) => updateServiceDetails(idx, 'costInfant', v)} hint={`${counts.infants} infant(s)`} />
+                      {!costOnly && <DecimalMoneyInput label="Sale / Infant" value={item.details?.saleInfant} onValueChange={(v) => updateServiceDetails(idx, 'saleInfant', v)} />}
+                    </>
+                  )}
+                </div>
+              </>
             )}
 
             {ROW_BASED_TYPES.includes(item.serviceType) && (item.rows || []).map((row, rowIdx) => (
               <div key={rowIdx} className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
                 <p className="text-xs font-semibold text-slate-500 mb-2">Row #{rowIdx + 1}</p>
+                <ReadOnlyDetailsGrid
+                  fields={item.serviceType === 'HOTEL'
+                    ? getHotelRowReadOnlyFields(row)
+                    : getTransportRowReadOnlyFields(row)}
+                />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {item.serviceType === 'HOTEL' ? (
                     <>

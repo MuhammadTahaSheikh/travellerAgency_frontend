@@ -79,7 +79,7 @@ export interface Vendor {
 export interface Booking {
   id: string;
   bookingNumber: string;
-  status: 'DRAFT' | 'PENDING' | 'REQUEST_CONFIRMATION' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+  status: 'DRAFT' | 'PENDING' | 'REQUEST_CONFIRMATION' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'PARTIALLY_REFUNDED' | 'REFUNDED';
   bookingType?: BookingType;
   guestName?: string;
   currency?: 'PKR' | 'SAR';

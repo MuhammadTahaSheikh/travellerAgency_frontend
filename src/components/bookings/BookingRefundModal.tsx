@@ -7,7 +7,7 @@ import { Booking, ApiResponse, VendorPostingSummary } from '@/types';
 import { formatCurrency, LoadingSpinner, Badge } from '@/components/ui/Common';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
-import { DecimalMoneyInput } from '@/components/ui/DecimalMoneyInput';
+import { formatBookingStatusLabel } from '@/lib/bookingStatus';
 
 type BookingRefundModalProps = {
   booking: Booking | null;
@@ -98,7 +98,7 @@ export function BookingRefundModal({ booking, open, onClose, onSuccess }: Bookin
           ) : (
             <>
               <div className="rounded-lg bg-slate-50 p-3 text-sm">
-                <Badge status={detail?.status || booking.status}>{detail?.status || booking.status}</Badge>
+                <Badge status={detail?.status || booking.status}>{formatBookingStatusLabel(detail?.status || booking.status)}</Badge>
                 <span className="ml-2 text-slate-600">Total: {formatCurrency(detail?.totalAmount || booking.totalAmount)}</span>
               </div>
 

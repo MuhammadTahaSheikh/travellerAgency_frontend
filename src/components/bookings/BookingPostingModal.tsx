@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import { Booking, ApiResponse, VendorPostingSummary } from '@/types';
 import { formatCurrency, LoadingSpinner, Badge } from '@/components/ui/Common';
 import { formatVendorDisplay } from '@/lib/vendorDisplay';
+import { resolvePostingServiceMeta } from '@/lib/postingServiceMeta';
 import { searchVendors } from '@/lib/searchableOptions';
 import { Button } from '@/components/ui/Button';
 import { SearchableSelect } from '@/components/ui/Input';
@@ -119,14 +120,24 @@ export function BookingPostingModal({ booking, open, onClose, onSuccess }: Booki
                 <p className="text-sm text-slate-500">No service costs recorded yet for this booking.</p>
               ) : (
                 <div className="space-y-3">
-                  {postings.map((posting) => (
+                  {postings.map((posting) => {
+                    const meta = resolvePostingServiceMeta(posting, detail?.serviceItems);
+                    return (
                     <div key={posting.id} className="rounded-xl border border-slate-200 p-4 space-y-3">
                       <div>
                         <p className="font-medium text-slate-900">{posting.description}</p>
-                        <p className="text-sm text-slate-500">
-                          {posting.serviceType} · {formatCurrency(posting.expectedCost)}
-                        </p>
-                        <span className={`inline-flex mt-2 px-2 py-0.5 rounded text-xs font-semibold ${
+                        <p className="text-sm text-slate-500">{posting.serviceType}</p>
+                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <span className="text-slate-500">Cost:</span>{' '}
+                            <span className="font-medium text-slate-900">{formatCurrency(meta.cost, meta.currency)}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Res #:</span>{' '}
+                            <span className="font-medium text-slate-900">{meta.vendorResNo}</span>
+                          </div>
+                        </div>
+                        <span className={`inline-flex mt-3 px-2 py-0.5 rounded text-xs font-semibold ${
                           posting.status === 'POSTED'
                             ? 'bg-emerald-50 text-emerald-700'
                             : posting.status === 'UNASSIGNED' || !posting.vendor?.id
@@ -161,7 +172,8 @@ export function BookingPostingModal({ booking, open, onClose, onSuccess }: Booki
                         <p className="text-sm text-slate-600">Vendor: {formatVendorDisplay(posting.vendor)}</p>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </>

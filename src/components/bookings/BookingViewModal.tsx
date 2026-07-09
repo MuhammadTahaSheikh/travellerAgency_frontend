@@ -6,7 +6,7 @@ import api from '@/lib/api';
 import { Booking, ApiResponse } from '@/types';
 import { formatCurrency, formatDate, Badge, LoadingSpinner } from '@/components/ui/Common';
 import { formatVendorDisplay } from '@/lib/vendorDisplay';
-import { getPaymentStatus, getPostingStatus } from '@/lib/bookingStatus';
+import { getPaymentStatus, getPostingStatus, formatBookingStatusLabel } from '@/lib/bookingStatus';
 import { formatServiceDetailLines } from '@/lib/bookingServiceDetails';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -72,7 +72,7 @@ export function BookingViewModal({ bookingId, open, onClose }: BookingViewModalP
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <ReadOnlyField label="Booking #" value={booking.bookingNumber} />
                 <ReadOnlyField label="Customer" value={customerName} />
-                <ReadOnlyField label="Status" value={<Badge status={booking.status}>{booking.status}</Badge>} />
+                <ReadOnlyField label="Status" value={<Badge status={booking.status}>{formatBookingStatusLabel(booking.status)}</Badge>} />
                 <ReadOnlyField label="Type" value={booking.bookingType || '—'} />
                 <ReadOnlyField label="Total Amount" value={formatCurrency(booking.totalAmount)} />
                 <ReadOnlyField label="Paid Amount" value={formatCurrency(booking.paidAmount)} />

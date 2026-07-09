@@ -10,6 +10,8 @@ const statusColors: Record<string, string> = {
   CONFIRMED: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
   CANCELLED: 'bg-red-50 text-red-700 ring-red-600/20',
   COMPLETED: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+  PARTIALLY_REFUNDED: 'bg-orange-50 text-orange-700 ring-orange-600/20',
+  REFUNDED: 'bg-red-50 text-red-700 ring-red-600/20',
   SENT: 'bg-sky-50 text-sky-700 ring-sky-600/20',
   PAID: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
   PARTIAL: 'bg-orange-50 text-orange-700 ring-orange-600/20',

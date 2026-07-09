@@ -20,7 +20,7 @@ import {
 import { canCreateResource, canEditResource, canDeleteResource, canModifyBooking, canDirectConfirmBooking, canEditBookingPricing, isSuperAdmin } from '@/lib/permissions';
 import { formatDecimalValue, moneyFieldValue } from '@/lib/decimalFormat';
 import { DecimalMoneyInput } from '@/components/ui/DecimalMoneyInput';
-import { getPaymentStatus, getPostingStatus, paymentStatusColor, postingStatusColor } from '@/lib/bookingStatus';
+import { getPaymentStatus, getPostingStatus, paymentStatusColor, postingStatusColor, formatBookingStatusLabel } from '@/lib/bookingStatus';
 import { shareInvoiceViaWhatsApp } from '@/lib/whatsapp';
 import { useExchangeRate } from '@/contexts/ExchangeRateContext';
 import { Button } from '@/components/ui/Button';
@@ -852,7 +852,7 @@ export default function BookingsPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Badge status={b.status}>{b.status === 'REQUEST_CONFIRMATION' ? 'Request Confirmation' : b.status}</Badge>
+                            <Badge status={b.status}>{formatBookingStatusLabel(b.status)}</Badge>
                             {canEditResource(user, 'bookings') && b.status === 'DRAFT' && (
                               <button
                                 type="button"
@@ -886,7 +886,7 @@ export default function BookingsPage() {
                         <TableCell className="hidden lg:table-cell text-slate-500">{formatDate(b.createdAt)}</TableCell>
                         <TableCell align="right">
                           <div className="flex items-center justify-end gap-2">
-                            {isSuperAdmin(user) && (b.status === 'CONFIRMED' || b.status === 'COMPLETED') && (
+                            {isSuperAdmin(user) && (b.status === 'CONFIRMED' || b.status === 'COMPLETED' || b.status === 'PARTIALLY_REFUNDED') && (
                               <Button type="button" variant="secondary" className="text-xs px-2 py-1" onClick={() => setRefundBooking(b)}>
                                 Refund
                               </Button>

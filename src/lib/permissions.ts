@@ -64,13 +64,16 @@ export function canModifyBooking(user: User | null, bookingStatus: string): bool
   if (!user) return false;
   if (isSuperAdmin(user)) return true;
   if (getUserRole(user) === 'ADMIN') return true;
-  return bookingStatus !== 'CONFIRMED' && bookingStatus !== 'REQUEST_CONFIRMATION';
+  return bookingStatus !== 'CONFIRMED'
+    && bookingStatus !== 'REQUEST_CONFIRMATION'
+    && bookingStatus !== 'PARTIALLY_REFUNDED'
+    && bookingStatus !== 'REFUNDED';
 }
 
 export function canEditBookingVendorCost(user: User | null, bookingStatus: string): boolean {
   if (!user) return false;
   if (isSuperAdmin(user) || getUserRole(user) === 'ADMIN') return true;
-  return bookingStatus === 'CONFIRMED';
+  return bookingStatus === 'CONFIRMED' || bookingStatus === 'PARTIALLY_REFUNDED';
 }
 
 export function canEditBookingPricing(user: User | null, bookingStatus: string): boolean {
