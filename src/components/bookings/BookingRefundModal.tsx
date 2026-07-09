@@ -7,6 +7,7 @@ import { Booking, ApiResponse, VendorPostingSummary } from '@/types';
 import { formatCurrency, LoadingSpinner, Badge } from '@/components/ui/Common';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
+import { DecimalMoneyInput } from '@/components/ui/DecimalMoneyInput';
 import { formatBookingStatusLabel } from '@/lib/bookingStatus';
 
 type BookingRefundModalProps = {
