@@ -25,17 +25,36 @@ const rowSaleNative = (item: BookingServiceItem, row: ServiceRow) =>
     ? toNum(row.salePerNight || '0') * nightsBetween(row.checkInDate, row.checkOutDate) * (toInt(row.numRooms || '1') || 1)
     : toNum(row.sale || '0');
 
+const perPassengerCost = (details: Record<string, string> | undefined, counts: PassengerCounts, legacyFlat?: number) => {
+  const d = details || {};
+  if (d.costAdult || d.costChild || d.costInfant) {
+    return counts.adults * toNum(d.costAdult || '0') +
+      counts.children * toNum(d.costChild || '0') +
+      counts.infants * toNum(d.costInfant || '0');
+  }
+  if (d.costPrice) return toNum(d.costPrice);
+  return toNum(String(legacyFlat ?? 0));
+};
+
+const perPassengerSale = (details: Record<string, string> | undefined, counts: PassengerCounts, legacyFlat?: number) => {
+  const d = details || {};
+  if (d.saleAdult || d.saleChild || d.saleInfant) {
+    return counts.adults * toNum(d.saleAdult || '0') +
+      counts.children * toNum(d.saleChild || '0') +
+      counts.infants * toNum(d.saleInfant || '0');
+  }
+  if (d.salePrice) return toNum(d.salePrice);
+  return toNum(String(legacyFlat ?? 0));
+};
+
 export const serviceCostNative = (item: BookingServiceItem, counts: PassengerCounts): number => {
   switch (item.serviceType) {
     case 'HOTEL':
     case 'TRANSPORT':
       return (item.rows || []).reduce((s, r) => s + rowCostNative(item, r), 0);
     case 'TICKET':
-      return counts.adults * toNum(item.details?.costAdult || '0') +
-        counts.children * toNum(item.details?.costChild || '0') +
-        counts.infants * toNum(item.details?.costInfant || '0');
     case 'VISA':
-      return toNum(item.details?.costPrice ?? String(item.costAmount ?? 0));
+      return perPassengerCost(item.details, counts, item.costAmount);
     default:
       return toNum(item.details?.costPrice ?? String(item.costAmount ?? 0));
   }
@@ -47,11 +66,8 @@ export const serviceSaleNative = (item: BookingServiceItem, counts: PassengerCou
     case 'TRANSPORT':
       return (item.rows || []).reduce((s, r) => s + rowSaleNative(item, r), 0);
     case 'TICKET':
-      return counts.adults * toNum(item.details?.saleAdult || '0') +
-        counts.children * toNum(item.details?.saleChild || '0') +
-        counts.infants * toNum(item.details?.saleInfant || '0');
     case 'VISA':
-      return toNum(item.details?.salePrice ?? String(item.amount ?? 0));
+      return perPassengerSale(item.details, counts, item.amount);
     default:
       return toNum(item.details?.salePrice ?? String(item.amount ?? 0));
   }

@@ -91,9 +91,8 @@ export function BookingPricingModal({ booking, open, onClose, onSuccess }: Booki
               amount: nativeSale,
               details: {
                 ...((restDetails as Record<string, string>) || {}),
-                ...(s.serviceType === 'VISA' ? {
-                  costPrice: (restDetails as Record<string, string>).costPrice ?? (nativeCost ? formatDecimalValue(nativeCost, 3) : ''),
-                  salePrice: (restDetails as Record<string, string>).salePrice ?? (nativeSale ? formatDecimalValue(nativeSale, 3) : ''),
+                ...(s.serviceType === 'VISA' && !(restDetails as Record<string, string>).costAdult && (restDetails as Record<string, string>).costPrice ? {
+                  costAdult: (restDetails as Record<string, string>).costPrice,
                 } : {}),
               },
               rows: ((persistedRows as ServiceRow[]) || []).map((r) => ({
@@ -178,10 +177,20 @@ export function BookingPricingModal({ booking, open, onClose, onSuccess }: Booki
             {item.serviceType === 'VISA' && (
               <>
                 <ReadOnlyDetailsGrid fields={getVisaReadOnlyFields(item)} />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <DecimalMoneyInput label="Cost" value={item.details?.costPrice ?? moneyFieldValue(item.costAmount)} onValueChange={(v) => updateServiceDetails(idx, 'costPrice', v)} />
-                  {!costOnly && (
-                    <DecimalMoneyInput label="Sale" value={item.details?.salePrice ?? moneyFieldValue(item.amount)} onValueChange={(v) => updateServiceDetails(idx, 'salePrice', v)} />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <DecimalMoneyInput label="Cost / Adult" value={item.details?.costAdult} onValueChange={(v) => updateServiceDetails(idx, 'costAdult', v)} hint={`${counts.adults} adult(s)`} />
+                  {!costOnly && <DecimalMoneyInput label="Sale / Adult" value={item.details?.saleAdult} onValueChange={(v) => updateServiceDetails(idx, 'saleAdult', v)} />}
+                  {counts.children > 0 && (
+                    <>
+                      <DecimalMoneyInput label="Cost / Child" value={item.details?.costChild} onValueChange={(v) => updateServiceDetails(idx, 'costChild', v)} hint={`${counts.children} child(ren)`} />
+                      {!costOnly && <DecimalMoneyInput label="Sale / Child" value={item.details?.saleChild} onValueChange={(v) => updateServiceDetails(idx, 'saleChild', v)} />}
+                    </>
+                  )}
+                  {counts.infants > 0 && (
+                    <>
+                      <DecimalMoneyInput label="Cost / Infant" value={item.details?.costInfant} onValueChange={(v) => updateServiceDetails(idx, 'costInfant', v)} hint={`${counts.infants} infant(s)`} />
+                      {!costOnly && <DecimalMoneyInput label="Sale / Infant" value={item.details?.saleInfant} onValueChange={(v) => updateServiceDetails(idx, 'saleInfant', v)} />}
+                    </>
                   )}
                 </div>
               </>
