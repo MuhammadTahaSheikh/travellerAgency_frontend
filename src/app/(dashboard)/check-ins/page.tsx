@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Download, Plus } from 'lucide-react';
 import api from '@/lib/api';
 import { exportCheckInsCsv, exportCheckInsPdf } from '@/lib/checkInExport';
+import { todayDateOnly } from '@/lib/dateRangeUtils';
 import { buildQueryString } from '@/lib/query';
 import { searchCustomers, searchVendors, searchBookings } from '@/lib/searchableOptions';
 import { CheckInRecord, Booking, Customer, Vendor, ApiResponse } from '@/types';
@@ -182,7 +183,7 @@ export default function CheckInsPage() {
               {form.scheduleType === 'HOTEL' ? (
                 <>
                   <Input label="Hotel Name" value={form.hotelName} onChange={(e) => setForm({ ...form, hotelName: e.target.value })} required />
-                  <Input label="Check-in Date" type="date" value={form.checkInDate} onChange={(e) => setForm({ ...form, checkInDate: e.target.value })} required />
+                  <Input label="Check-in Date" type="date" min={todayDateOnly()} value={form.checkInDate} onChange={(e) => setForm({ ...form, checkInDate: e.target.value })} required />
                   <Input label="Room Details" value={form.roomDetails} onChange={(e) => setForm({ ...form, roomDetails: e.target.value })} />
                 </>
               ) : (

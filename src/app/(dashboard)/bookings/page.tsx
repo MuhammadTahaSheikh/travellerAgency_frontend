@@ -19,7 +19,7 @@ import {
 } from '@/types';
 import { canCreateResource, canEditResource, canDeleteResource, canModifyBooking, canDirectConfirmBooking, canEditBookingPricing, isSuperAdmin } from '@/lib/permissions';
 import { formatDecimalValue, moneyFieldValue } from '@/lib/decimalFormat';
-import { endDateMin, isDateAfter } from '@/lib/dateRangeUtils';
+import { endDateMin, isDateAfter, todayDateOnly } from '@/lib/dateRangeUtils';
 import { DecimalMoneyInput } from '@/components/ui/DecimalMoneyInput';
 import { getPaymentStatus, getPostingStatus, paymentStatusColor, postingStatusColor, formatBookingStatusLabel } from '@/lib/bookingStatus';
 import { shareInvoiceViaWhatsApp } from '@/lib/whatsapp';
@@ -1193,6 +1193,7 @@ function ServiceRows({ item, currency, priceMode, vendorLabel, onAddRow, onRemov
                       label="Check-in Date"
                       type="date"
                       value={row.checkInDate || ''}
+                      min={todayDateOnly()}
                       onChange={(e) => {
                         const next = e.target.value;
                         onUpdateRow(rowIdx, 'checkInDate', next);

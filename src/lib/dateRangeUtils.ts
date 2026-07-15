@@ -12,6 +12,11 @@ export function formatDateOnly(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Today's local calendar date, suitable for an HTML date input min value. */
+export function todayDateOnly(): string {
+  return formatDateOnly(new Date());
+}
+
 /** End date must be strictly after start date. */
 export function isDateAfter(end?: string, start?: string): boolean {
   const e = parseDateOnly(end);
