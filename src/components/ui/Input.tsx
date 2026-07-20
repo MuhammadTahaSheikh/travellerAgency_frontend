@@ -11,15 +11,18 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   hint?: string;
 }
 
-export function Input({ label, error, hint, className, ...props }: InputProps) {
+export function Input({ label, error, hint, className, readOnly, disabled, ...props }: InputProps) {
   return (
     <div className="space-y-1.5">
       {label && <label className="block text-sm font-medium text-slate-700">{label}</label>}
       <input
+        readOnly={readOnly}
+        disabled={disabled}
         className={clsx(
           'w-full px-3.5 py-2.5 bg-white border rounded-xl text-sm text-slate-900 placeholder:text-slate-400',
           'transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500',
           error ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' : 'border-slate-200 hover:border-slate-300',
+          (readOnly || disabled) && 'bg-slate-50 text-slate-700 cursor-default focus:ring-0 focus:border-slate-200 hover:border-slate-200',
           className
         )}
         {...props}

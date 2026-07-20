@@ -7,7 +7,7 @@ import api from '@/lib/api';
 import { Booking, ApiResponse, VendorPostingSummary } from '@/types';
 import { formatCurrency, LoadingSpinner, Badge } from '@/components/ui/Common';
 import { formatVendorDisplay } from '@/lib/vendorDisplay';
-import { resolvePostingServiceMeta } from '@/lib/postingServiceMeta';
+import { buildServicePostingPreviews, resolvePostingServiceMeta } from '@/lib/postingServiceMeta';
 import { searchVendors } from '@/lib/searchableOptions';
 import { Button } from '@/components/ui/Button';
 import { SearchableSelect } from '@/components/ui/Input';
@@ -49,6 +49,7 @@ export function BookingPostingModal({ booking, open, onClose, onSuccess }: Booki
   if (!open || !booking) return null;
 
   const postings = detail?.vendorPostings || [];
+  const servicePreviews = buildServicePostingPreviews(detail?.serviceItems);
 
   const customerName = detail?.guestName
     || detail?.customer?.companyName
@@ -116,18 +117,20 @@ export function BookingPostingModal({ booking, open, onClose, onSuccess }: Booki
                 <div><span className="text-slate-500">Status:</span> <Badge status={detail?.status || booking.status}>{detail?.status || booking.status}</Badge></div>
               </div>
 
-              {postings.length === 0 ? (
-                <p className="text-sm text-slate-500">No service costs recorded yet for this booking.</p>
-              ) : (
+              {postings.length > 0 ? (
                 <div className="space-y-3">
                   {postings.map((posting) => {
                     const meta = resolvePostingServiceMeta(posting, detail?.serviceItems);
                     return (
                     <div key={posting.id} className="rounded-xl border border-slate-200 p-4 space-y-3">
                       <div>
-                        <p className="font-medium text-slate-900">{posting.description}</p>
-                        <p className="text-sm text-slate-500">{posting.serviceType}</p>
-                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        <p className="font-medium text-slate-900">{meta.label || posting.description}</p>
+                        <p className="text-sm text-slate-500">{posting.serviceType}{meta.sector && meta.sector !== '—' ? ` · ${meta.sector}` : ''}</p>
+                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                          <div>
+                            <span className="text-slate-500">Sector / Service:</span>{' '}
+                            <span className="font-medium text-slate-900">{meta.sector || '—'}</span>
+                          </div>
                           <div>
                             <span className="text-slate-500">Cost:</span>{' '}
                             <span className="font-medium text-slate-900">{formatCurrency(meta.cost, meta.currency)}</span>
@@ -175,6 +178,35 @@ export function BookingPostingModal({ booking, open, onClose, onSuccess }: Booki
                     );
                   })}
                 </div>
+              ) : servicePreviews.length > 0 ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    Vendor postings sync ho rahe hain / cost 0 thi. Services neeche dikh rahe hain — page refresh karein ya Vendor Postings se assign karein.
+                  </p>
+                  {servicePreviews.map((row) => (
+                    <div key={row.key} className="rounded-xl border border-slate-200 p-4 space-y-2">
+                      <p className="font-medium text-slate-900">{row.label}</p>
+                      <p className="text-sm text-slate-500">{row.serviceType} · {row.sector}</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <span className="text-slate-500">Sector / Service:</span>{' '}
+                          <span className="font-medium text-slate-900">{row.sector}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Cost:</span>{' '}
+                          <span className="font-medium text-slate-900">{formatCurrency(row.cost, row.currency)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Res #:</span>{' '}
+                          <span className="font-medium text-slate-900">{row.vendorResNo}</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500">Vendor assignment available after posting sync (re-open this modal).</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">No services recorded yet for this booking.</p>
               )}
             </>
           )}

@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { clsx } from 'clsx';
 
 export function TableWrapper({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -46,11 +47,24 @@ export function TableBody({ children }: { children: React.ReactNode }) {
   return <tbody className="divide-y divide-slate-100 bg-white">{children}</tbody>;
 }
 
-export function TableRow({ children, className }: { children: React.ReactNode; className?: string }) {
+export const TableRow = forwardRef<
+  HTMLTableRowElement,
+  {
+    children: React.ReactNode;
+    className?: string;
+    onClick?: React.MouseEventHandler<HTMLTableRowElement>;
+  }
+>(function TableRow({ children, className, onClick }, ref) {
   return (
-    <tr className={clsx('hover:bg-slate-50/80 transition-colors', className)}>{children}</tr>
+    <tr
+      ref={ref}
+      className={clsx('hover:bg-slate-50/80 transition-colors', onClick && 'cursor-pointer', className)}
+      onClick={onClick}
+    >
+      {children}
+    </tr>
   );
-}
+});
 
 export function TableCell({
   children,

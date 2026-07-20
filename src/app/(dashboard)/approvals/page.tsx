@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { clsx } from 'clsx';
 import { CheckCircle, XCircle } from 'lucide-react';
 import api from '@/lib/api';
 import { Invoice, PostingRequest, BookingConfirmationRequest, ApiResponse } from '@/types';
@@ -10,6 +11,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { PageHeader, LoadingSpinner, formatCurrency, formatDate, EmptyState } from '@/components/ui/Common';
 import { formatVendorDisplay } from '@/lib/vendorDisplay';
 import { Table, TableWrapper, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@/components/ui/Table';
+import { BookingViewModal } from '@/components/bookings/BookingViewModal';
 
 interface ApprovalInvoice extends Invoice {
   remainingBalance?: number;
@@ -22,13 +24,18 @@ type Tab = 'payments' | 'booking' | 'posting';
 export default function ApprovalsPage() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
-  const initialTab: Tab = tabParam === 'posting' ? 'posting' : tabParam === 'booking' ? 'booking' : 'payments';
+  const bookingParam = searchParams.get('booking');
+  const initialTab: Tab = tabParam === 'posting' ? 'posting' : tabParam === 'payments' ? 'payments' : 'booking';
   const [tab, setTab] = useState<Tab>(initialTab);
   const [invoices, setInvoices] = useState<ApprovalInvoice[]>([]);
   const [bookingRequests, setBookingRequests] = useState<BookingConfirmationRequest[]>([]);
   const [postingRequests, setPostingRequests] = useState<PostingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [viewBookingId, setViewBookingId] = useState<string | null>(null);
+  const autoOpenedRef = useRef(false);
+  const selectedRowRef = useRef<HTMLTableRowElement>(null);
 
   const loadData = () => {
     setLoading(true);
@@ -47,6 +54,35 @@ export default function ApprovalsPage() {
   };
 
   useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    if (loading || tab !== 'booking' || bookingRequests.length === 0 || autoOpenedRef.current) return;
+
+    let target: BookingConfirmationRequest | undefined;
+    if (bookingParam) {
+      target = bookingRequests.find((r) => r.booking?.bookingNumber === bookingParam);
+    } else if (bookingRequests.length === 1) {
+      target = bookingRequests[0];
+    }
+
+    if (target?.bookingId) {
+      autoOpenedRef.current = true;
+      setSelectedRequestId(target.id);
+      setViewBookingId(target.bookingId);
+    }
+  }, [loading, tab, bookingRequests, bookingParam]);
+
+  useEffect(() => {
+    if (selectedRequestId && selectedRowRef.current) {
+      selectedRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [selectedRequestId]);
+
+  const handleBookingRowClick = (req: BookingConfirmationRequest) => {
+    if (!req.bookingId) return;
+    setSelectedRequestId(req.id);
+    setViewBookingId(req.bookingId);
+  };
 
   const handleApprove = async (inv: ApprovalInvoice) => {
     if (!confirm(`Approve invoice ${inv.invoiceNumber} and issue vouchers?`)) return;
@@ -257,7 +293,14 @@ export default function ApprovalsPage() {
                   </TableHead>
                   <TableBody>
                     {bookingRequests.map((req) => (
-                      <TableRow key={req.id}>
+                      <TableRow
+                        key={req.id}
+                        ref={selectedRequestId === req.id ? selectedRowRef : undefined}
+                        className={clsx(
+                          selectedRequestId === req.id && 'bg-teal-50 ring-1 ring-inset ring-teal-200 hover:bg-teal-50'
+                        )}
+                        onClick={() => handleBookingRowClick(req)}
+                      >
                         <TableCell className="font-semibold">{req.booking?.bookingNumber || '—'}</TableCell>
                         <TableCell>
                           {req.booking?.customer?.companyName
@@ -274,10 +317,20 @@ export default function ApprovalsPage() {
                         <TableCell>{formatDate(req.createdAt)}</TableCell>
                         <TableCell align="right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="secondary" loading={acting === req.id} onClick={() => handleApproveBooking(req)} title="Confirm booking">
+                            <Button
+                              variant="secondary"
+                              loading={acting === req.id}
+                              onClick={(e) => { e.stopPropagation(); handleApproveBooking(req); }}
+                              title="Confirm booking"
+                            >
                               <CheckCircle className="w-4 h-4 text-green-600" />
                             </Button>
-                            <Button variant="secondary" loading={acting === req.id} onClick={() => handleRejectBooking(req)} title="Reject">
+                            <Button
+                              variant="secondary"
+                              loading={acting === req.id}
+                              onClick={(e) => { e.stopPropagation(); handleRejectBooking(req); }}
+                              title="Reject"
+                            >
                               <XCircle className="w-4 h-4 text-red-600" />
                             </Button>
                           </div>
@@ -345,6 +398,12 @@ export default function ApprovalsPage() {
           </CardBody>
         </Card>
       )}
+
+      <BookingViewModal
+        bookingId={viewBookingId}
+        open={!!viewBookingId}
+        onClose={() => setViewBookingId(null)}
+      />
     </div>
   );
 }

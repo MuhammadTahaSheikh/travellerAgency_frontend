@@ -15,7 +15,6 @@ import { buildServiceItemsPayload, PassengerCounts } from '@/lib/bookingPricingU
 import { useExchangeRate } from '@/contexts/ExchangeRateContext';
 import { formatCurrency, LoadingSpinner, Badge } from '@/components/ui/Common';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { DecimalMoneyInput } from '@/components/ui/DecimalMoneyInput';
 import { formatDecimalValue, moneyFieldValue } from '@/lib/decimalFormat';
 import {
@@ -178,17 +177,17 @@ export function BookingPricingModal({ booking, open, onClose, onSuccess }: Booki
               <>
                 <ReadOnlyDetailsGrid fields={getVisaReadOnlyFields(item)} />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  <DecimalMoneyInput label="Cost / Adult" value={item.details?.costAdult} onValueChange={(v) => updateServiceDetails(idx, 'costAdult', v)} hint={`${counts.adults} adult(s)`} />
+                  <DecimalMoneyInput label="Cost / Adult" value={item.details?.costAdult} onValueChange={() => {}} readOnly hint={`${counts.adults} adult(s)`} />
                   {!costOnly && <DecimalMoneyInput label="Sale / Adult" value={item.details?.saleAdult} onValueChange={(v) => updateServiceDetails(idx, 'saleAdult', v)} />}
                   {counts.children > 0 && (
                     <>
-                      <DecimalMoneyInput label="Cost / Child" value={item.details?.costChild} onValueChange={(v) => updateServiceDetails(idx, 'costChild', v)} hint={`${counts.children} child(ren)`} />
+                      <DecimalMoneyInput label="Cost / Child" value={item.details?.costChild} onValueChange={() => {}} readOnly hint={`${counts.children} child(ren)`} />
                       {!costOnly && <DecimalMoneyInput label="Sale / Child" value={item.details?.saleChild} onValueChange={(v) => updateServiceDetails(idx, 'saleChild', v)} />}
                     </>
                   )}
                   {counts.infants > 0 && (
                     <>
-                      <DecimalMoneyInput label="Cost / Infant" value={item.details?.costInfant} onValueChange={(v) => updateServiceDetails(idx, 'costInfant', v)} hint={`${counts.infants} infant(s)`} />
+                      <DecimalMoneyInput label="Cost / Infant" value={item.details?.costInfant} onValueChange={() => {}} readOnly hint={`${counts.infants} infant(s)`} />
                       {!costOnly && <DecimalMoneyInput label="Sale / Infant" value={item.details?.saleInfant} onValueChange={(v) => updateServiceDetails(idx, 'saleInfant', v)} />}
                     </>
                   )}
@@ -200,17 +199,17 @@ export function BookingPricingModal({ booking, open, onClose, onSuccess }: Booki
               <>
                 <ReadOnlyDetailsGrid fields={getTicketReadOnlyFields(item)} />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  <DecimalMoneyInput label="Cost / Adult" value={item.details?.costAdult} onValueChange={(v) => updateServiceDetails(idx, 'costAdult', v)} hint={`${counts.adults} adult(s)`} />
+                  <DecimalMoneyInput label="Cost / Adult" value={item.details?.costAdult} onValueChange={() => {}} readOnly hint={`${counts.adults} adult(s)`} />
                   {!costOnly && <DecimalMoneyInput label="Sale / Adult" value={item.details?.saleAdult} onValueChange={(v) => updateServiceDetails(idx, 'saleAdult', v)} />}
                   {counts.children > 0 && (
                     <>
-                      <DecimalMoneyInput label="Cost / Child" value={item.details?.costChild} onValueChange={(v) => updateServiceDetails(idx, 'costChild', v)} hint={`${counts.children} child(ren)`} />
+                      <DecimalMoneyInput label="Cost / Child" value={item.details?.costChild} onValueChange={() => {}} readOnly hint={`${counts.children} child(ren)`} />
                       {!costOnly && <DecimalMoneyInput label="Sale / Child" value={item.details?.saleChild} onValueChange={(v) => updateServiceDetails(idx, 'saleChild', v)} />}
                     </>
                   )}
                   {counts.infants > 0 && (
                     <>
-                      <DecimalMoneyInput label="Cost / Infant" value={item.details?.costInfant} onValueChange={(v) => updateServiceDetails(idx, 'costInfant', v)} hint={`${counts.infants} infant(s)`} />
+                      <DecimalMoneyInput label="Cost / Infant" value={item.details?.costInfant} onValueChange={() => {}} readOnly hint={`${counts.infants} infant(s)`} />
                       {!costOnly && <DecimalMoneyInput label="Sale / Infant" value={item.details?.saleInfant} onValueChange={(v) => updateServiceDetails(idx, 'saleInfant', v)} />}
                     </>
                   )}
@@ -229,12 +228,12 @@ export function BookingPricingModal({ booking, open, onClose, onSuccess }: Booki
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {item.serviceType === 'HOTEL' ? (
                     <>
-                      <DecimalMoneyInput label="Cost / Night" value={row.costPerNight} onValueChange={(v) => updateServiceRow(idx, rowIdx, 'costPerNight', v)} />
+                      <DecimalMoneyInput label="Cost / Night" value={row.costPerNight} onValueChange={() => {}} readOnly />
                       {!costOnly && <DecimalMoneyInput label="Sale / Night" value={row.salePerNight} onValueChange={(v) => updateServiceRow(idx, rowIdx, 'salePerNight', v)} />}
                     </>
                   ) : (
                     <>
-                      <DecimalMoneyInput label="Cost" value={row.cost} onValueChange={(v) => updateServiceRow(idx, rowIdx, 'cost', v)} />
+                      <DecimalMoneyInput label="Cost" value={row.cost} onValueChange={() => {}} readOnly />
                       {!costOnly && <DecimalMoneyInput label="Sale" value={row.sale} onValueChange={(v) => updateServiceRow(idx, rowIdx, 'sale', v)} />}
                     </>
                   )}
@@ -253,7 +252,7 @@ export function BookingPricingModal({ booking, open, onClose, onSuccess }: Booki
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
           <div>
             <h2 className="text-xl font-bold text-slate-900">Edit Pricing</h2>
-            <p className="text-sm text-slate-500">{booking.bookingNumber} — COST/SALE only, rest read-only</p>
+            <p className="text-sm text-slate-500">{booking.bookingNumber} — SALE editable, cost & details read-only</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <X className="h-5 w-5" />
