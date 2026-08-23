@@ -53,7 +53,8 @@ export async function downloadHtmlAsPdf(html: string, options: PdfDownloadOption
   doc.write(html);
   doc.close();
   await waitForRender(iframe);
-  await new Promise<void>((resolve) => window.setTimeout(resolve, 400));
+  // Allow embedded base64 logos and SVG icons to finish decoding before capture.
+  await new Promise<void>((resolve) => window.setTimeout(resolve, orientation === 'portrait' ? 800 : 400));
 
   const element = doc.body;
   if (!element) {
@@ -65,15 +66,17 @@ export async function downloadHtmlAsPdf(html: string, options: PdfDownloadOption
     const pdfOptions = {
       margin: orientation === 'portrait' ? [6, 6, 6, 6] : [8, 8, 8, 8],
       filename: ensurePdfFilename(options.filename),
-      image: { type: 'jpeg', quality: 0.98 },
+      image: { type: 'png', quality: 1 },
       html2canvas: {
-        scale: 2,
+        scale: orientation === 'portrait' ? 3 : 2,
         useCORS: true,
+        allowTaint: true,
         logging: false,
         scrollX: 0,
         scrollY: 0,
         windowWidth: renderWidth,
         backgroundColor: '#ffffff',
+        imageTimeout: 15000,
       },
       jsPDF: {
         unit: 'mm',
