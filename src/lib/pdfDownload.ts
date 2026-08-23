@@ -36,7 +36,7 @@ export async function downloadHtmlAsPdf(html: string, options: PdfDownloadOption
 
   const host = document.createElement('div');
   host.setAttribute('aria-hidden', 'true');
-  host.style.cssText = `position:fixed;left:0;top:0;width:${renderWidth}px;min-height:800px;background:#fff;opacity:0.01;pointer-events:none;z-index:2147483646;overflow:visible;`;
+  host.style.cssText = `position:fixed;left:-10000px;top:0;width:${renderWidth}px;min-height:800px;background:#ffffff;pointer-events:none;z-index:2147483646;overflow:visible;`;
   document.body.appendChild(host);
 
   const iframe = document.createElement('iframe');
