@@ -30,17 +30,17 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export async function downloadHtmlAsPdf(html: string, options: PdfDownloadOptions): Promise<void> {
   const orientation = options.orientation ?? 'landscape';
-  // Portrait A4 printable width is ~190mm. Keep the capture canvas at that
-  // size so wide tables cannot overflow and get clipped on the right.
-  const renderWidth = orientation === 'portrait' ? 720 : 1200;
+  // A4 CSS pixel width at 96dpi. Invoice HTML is designed for this page, with
+  // service tables at 70% like the Huffaz invoice generator.
+  const renderWidth = orientation === 'portrait' ? 794 : 1200;
 
   const host = document.createElement('div');
   host.setAttribute('aria-hidden', 'true');
-  host.style.cssText = `position:fixed;left:-10000px;top:0;width:${renderWidth}px;min-height:800px;background:#ffffff;pointer-events:none;z-index:2147483646;overflow:hidden;`;
+  host.style.cssText = `position:fixed;left:-10000px;top:0;width:${renderWidth}px;min-height:800px;background:#ffffff;pointer-events:none;z-index:2147483646;overflow:visible;`;
   document.body.appendChild(host);
 
   const iframe = document.createElement('iframe');
-  iframe.style.cssText = `width:${renderWidth}px;min-height:800px;border:none;background:#fff;overflow:hidden;`;
+  iframe.style.cssText = `width:${renderWidth}px;min-height:800px;border:none;background:#fff;overflow:visible;`;
   host.appendChild(iframe);
 
   const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
@@ -52,17 +52,10 @@ export async function downloadHtmlAsPdf(html: string, options: PdfDownloadOption
   doc.open();
   doc.write(html);
   doc.close();
-  doc.documentElement.style.width = `${renderWidth}px`;
-  doc.documentElement.style.maxWidth = `${renderWidth}px`;
-  doc.documentElement.style.overflow = 'hidden';
-  doc.body.style.width = `${renderWidth}px`;
-  doc.body.style.maxWidth = `${renderWidth}px`;
-  doc.body.style.overflow = 'hidden';
   await waitForRender(iframe);
-  // Allow embedded base64 logos and SVG icons to finish decoding before capture.
   await new Promise<void>((resolve) => window.setTimeout(resolve, orientation === 'portrait' ? 800 : 400));
 
-  const element = doc.body;
+  const element = (doc.getElementById('invoice-root') || doc.body) as HTMLElement;
   if (!element) {
     document.body.removeChild(host);
     throw new Error('Could not render PDF');
@@ -70,7 +63,7 @@ export async function downloadHtmlAsPdf(html: string, options: PdfDownloadOption
 
   try {
     const pdfOptions = {
-      margin: orientation === 'portrait' ? [8, 8, 8, 8] : [8, 8, 8, 8],
+      margin: orientation === 'portrait' ? [10, 10, 10, 10] : [8, 8, 8, 8],
       filename: ensurePdfFilename(options.filename),
       image: { type: 'png', quality: 1 },
       html2canvas: {
@@ -80,7 +73,6 @@ export async function downloadHtmlAsPdf(html: string, options: PdfDownloadOption
         logging: false,
         scrollX: 0,
         scrollY: 0,
-        width: renderWidth,
         windowWidth: renderWidth,
         backgroundColor: '#ffffff',
         imageTimeout: 15000,
