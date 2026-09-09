@@ -30,9 +30,9 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export async function downloadHtmlAsPdf(html: string, options: PdfDownloadOptions): Promise<void> {
   const orientation = options.orientation ?? 'landscape';
-  // A4 CSS pixel width at 96dpi. Invoice HTML is designed for this page, with
-  // service tables at 70% like the Huffaz invoice generator.
-  const renderWidth = orientation === 'portrait' ? 794 : 1200;
+  // Portrait invoices/vouchers use nested tables around ~A4 width. Wider canvases
+  // make html2canvas drop cell padding and smash columns together.
+  const renderWidth = orientation === 'portrait' ? 820 : 1200;
 
   const host = document.createElement('div');
   host.setAttribute('aria-hidden', 'true');
@@ -40,7 +40,7 @@ export async function downloadHtmlAsPdf(html: string, options: PdfDownloadOption
   document.body.appendChild(host);
 
   const iframe = document.createElement('iframe');
-  iframe.style.cssText = `width:${renderWidth}px;min-height:800px;border:none;background:#fff;overflow:visible;`;
+  iframe.style.cssText = `width:${renderWidth}px;min-height:800px;border:none;background:#fff;`;
   host.appendChild(iframe);
 
   const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
@@ -63,7 +63,7 @@ export async function downloadHtmlAsPdf(html: string, options: PdfDownloadOption
 
   try {
     const pdfOptions = {
-      margin: orientation === 'portrait' ? [10, 10, 10, 10] : [8, 8, 8, 8],
+      margin: orientation === 'portrait' ? [8, 8, 8, 8] : [8, 8, 8, 8],
       filename: ensurePdfFilename(options.filename),
       image: { type: 'png', quality: 1 },
       html2canvas: {
