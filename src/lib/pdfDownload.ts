@@ -82,7 +82,7 @@ export async function downloadHtmlAsPdf(html: string, options: PdfDownloadOption
         format: 'a4',
         orientation,
       },
-      pagebreak: { mode: ['css', 'legacy'] },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['.keep-together'] },
     };
 
     const pdfBlob = (await html2pdf()
