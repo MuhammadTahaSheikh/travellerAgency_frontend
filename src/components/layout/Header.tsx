@@ -42,7 +42,7 @@ export function Header() {
               <Menu className="w-5 h-5" />
             </button>
             <div className="lg:hidden">
-              <Logo size="sm" showText subtitle="Management System" subtitleClassName="text-slate-500" />
+              <Logo size="sm" />
             </div>
           </div>
 

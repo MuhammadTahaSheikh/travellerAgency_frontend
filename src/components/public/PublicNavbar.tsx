@@ -21,7 +21,7 @@ export function PublicNavbar({ companyName }: { companyName: string }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-[4.25rem]">
           <Link href="/" className="flex items-center gap-2.5 group hover:opacity-90 transition-opacity">
-            <Logo size="sm" showText textClassName="text-slate-900 text-lg" />
+            <Logo size="md" />
             {companyName !== BRAND_NAME && (
               <span className="sr-only">{companyName}</span>
             )}

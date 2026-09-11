@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
 import { Logo } from '@/components/brand/Logo';
-import { BRAND_NAME, BRAND_TAGLINE } from '@/lib/brand';
+import { BRAND_TAGLINE } from '@/lib/brand';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { login, logout, clearLoginLoading } from '@/store/slices/authSlice';
 import api from '@/lib/api';
@@ -83,7 +83,7 @@ export default function LoginPage() {
         </div>
         <div className="relative z-10 flex flex-col justify-center px-16 text-white">
           <div className="mb-8">
-            <Logo size="lg" imageClassName="bg-white/95 ring-1 ring-white/20 shadow-lg" />
+            <Logo size="lg" />
           </div>
           <h1 className="text-4xl xl:text-5xl font-bold tracking-tight leading-tight">
             Manage your travel agency with confidence
@@ -123,11 +123,10 @@ export default function LoginPage() {
         <div className="w-full max-w-md animate-fade-in">
           <p className="text-xs font-bold uppercase tracking-wider text-teal-600 mb-2">Staff only</p>
           <div className="lg:hidden text-center mb-8">
-            <div className="flex justify-center mb-4">
+            <div className="flex justify-center mb-3">
               <Logo size="lg" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-900">{BRAND_NAME}</h1>
-            <p className="text-slate-500 mt-1 text-sm">{BRAND_TAGLINE}</p>
+            <p className="text-slate-500 text-sm">{BRAND_TAGLINE}</p>
           </div>
 
           <Card className="shadow-xl shadow-slate-200/60 border-0">
