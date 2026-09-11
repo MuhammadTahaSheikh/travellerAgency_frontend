@@ -88,16 +88,12 @@ export function Sidebar() {
           !sidebarOpen && 'lg:w-[72px]'
         )}
       >
-        <div
-          className={clsx(
-            'flex items-center border-b border-slate-800/80',
-            sidebarOpen || mobileMenuOpen ? 'justify-between gap-3 px-4 py-4' : 'justify-center px-2 py-4'
-          )}
-        >
+        <div className="flex items-center justify-between gap-3 px-4 py-5 border-b border-slate-800/80">
           <div className="flex items-center gap-3 min-w-0">
             <Logo
-              size={sidebarOpen || mobileMenuOpen ? 'md' : 'sm'}
+              size="sm"
               showText={sidebarOpen || mobileMenuOpen}
+              textClassName="text-white"
               subtitle="Agency Management"
               subtitleClassName="text-slate-400"
             />

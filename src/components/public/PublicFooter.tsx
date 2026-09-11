@@ -10,7 +10,7 @@ export function PublicFooter({ company }: { company: PublicCompany }) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
           <div className="lg:col-span-2">
             <div className="mb-4">
-              <Logo size="md" />
+              <Logo size="sm" showText textClassName="text-white text-lg" subtitleClassName="text-slate-400" />
             </div>
             <p className="text-sm text-slate-400 max-w-md leading-relaxed">
               Your trusted partner for Umrah, leisure, and cultural journeys. Curated packages,
