@@ -5,6 +5,9 @@ export type PdfDownloadOptions = {
   orientation?: 'portrait' | 'landscape';
 };
 
+const MARGIN_MM = 8;
+const MM_TO_PX = 96 / 25.4;
+
 function ensurePdfFilename(filename: string) {
   return filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`;
 }
@@ -28,11 +31,40 @@ function downloadBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function pageInnerPx(orientation: 'portrait' | 'landscape') {
+  const pageWmm = orientation === 'portrait' ? 210 : 297;
+  const pageHmm = orientation === 'portrait' ? 297 : 210;
+  return {
+    width: Math.floor((pageWmm - MARGIN_MM * 2) * MM_TO_PX),
+    height: Math.floor((pageHmm - MARGIN_MM * 2) * MM_TO_PX),
+  };
+}
+
+/** If a section would be cut by a page slice, push the whole block to the next page. */
+function keepSectionsOnOnePage(root: HTMLElement, pageHeightPx: number) {
+  const sections = Array.from(root.querySelectorAll<HTMLElement>('.keep-together'));
+  for (const el of sections) {
+    const origin = root.getBoundingClientRect().top;
+    const rect = el.getBoundingClientRect();
+    const top = rect.top - origin;
+    const height = rect.height;
+    if (height < 8 || height > pageHeightPx - 2) continue;
+
+    const used = ((top % pageHeightPx) + pageHeightPx) % pageHeightPx;
+    const remaining = pageHeightPx - used;
+    if (height <= remaining + 1) continue;
+
+    const pad = el.ownerDocument.createElement('div');
+    pad.setAttribute('data-pdf-page-push', 'true');
+    pad.style.cssText = `display:block;width:100%;height:${Math.ceil(remaining)}px;overflow:hidden;pointer-events:none;`;
+    el.parentElement?.insertBefore(pad, el);
+  }
+}
+
 export async function downloadHtmlAsPdf(html: string, options: PdfDownloadOptions): Promise<void> {
   const orientation = options.orientation ?? 'landscape';
-  // Portrait invoices/vouchers use nested tables around ~A4 width. Wider canvases
-  // make html2canvas drop cell padding and smash columns together.
-  const renderWidth = orientation === 'portrait' ? 820 : 1200;
+  const inner = pageInnerPx(orientation);
+  const renderWidth = inner.width;
 
   const host = document.createElement('div');
   host.setAttribute('aria-hidden', 'true');
@@ -61,9 +93,12 @@ export async function downloadHtmlAsPdf(html: string, options: PdfDownloadOption
     throw new Error('Could not render PDF');
   }
 
+  iframe.style.height = `${Math.max(800, element.scrollHeight + 40)}px`;
+  keepSectionsOnOnePage(element, inner.height);
+
   try {
     const pdfOptions = {
-      margin: orientation === 'portrait' ? [8, 8, 8, 8] : [8, 8, 8, 8],
+      margin: [MARGIN_MM, MARGIN_MM, MARGIN_MM, MARGIN_MM],
       filename: ensurePdfFilename(options.filename),
       image: { type: 'png', quality: 1 },
       html2canvas: {
@@ -82,7 +117,7 @@ export async function downloadHtmlAsPdf(html: string, options: PdfDownloadOption
         format: 'a4',
         orientation,
       },
-      pagebreak: { mode: ['css', 'legacy'], avoid: ['.keep-together'] },
+      pagebreak: { mode: [], before: [], after: [], avoid: [] },
     };
 
     const pdfBlob = (await html2pdf()
